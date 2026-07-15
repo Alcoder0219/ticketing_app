@@ -1,0 +1,216 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    /* Light palette — #F8FAFC bg, #FFFFFF cards, #E2E8F0 border, #0F172A/#64748B text, #2563EB primary */
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 42 52% 54%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
+    --radius: 0.5rem;
+
+    /* Semantic status tokens (shared) */
+    --success: 160 84% 39%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --sidebar-background: 210 47% 11%;
+    --sidebar-foreground: 210 20% 92%;
+    --sidebar-primary: 42 52% 54%;
+    --sidebar-primary-foreground: 210 47% 11%;
+    --sidebar-accent: 210 40% 18%;
+    --sidebar-accent-foreground: 210 20% 92%;
+    --sidebar-border: 210 35% 20%;
+    --sidebar-ring: 42 52% 54%;
+    --sidebar-muted-foreground: 210 15% 55%;
+
+    --status-open: 221 83% 53%;
+    --status-in-progress: 30 100% 50%;
+    --status-resolved: 153 80% 34%;
+    --status-closed: 215 14% 60%;
+    --status-reopened: 0 76% 52%;
+
+    --priority-critical: 0 84% 60%;
+    --priority-high: 25 95% 53%;
+    --priority-medium: 45 93% 47%;
+    --priority-low: 142 71% 45%;
+
+    --surface-elevated: 0 0% 100%;
+    --surface-sunken: 220 20% 95%;
+
+    --chart-1: 221 83% 48%;
+    --chart-2: 42 52% 54%;
+    --chart-3: 153 80% 34%;
+    --chart-4: 30 100% 50%;
+    --chart-5: 0 76% 52%;
+  }
+
+  .dark {
+    /* Premium low-eye-strain dark — #0F172A bg, #1E293B surface, #273449 elevated, #334155 border */
+    --background: 222 47% 11%;
+    --foreground: 210 40% 96%;
+    --card: 217 33% 17%;
+    --card-foreground: 210 40% 96%;
+    --popover: 217 33% 17%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 42 52% 54%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 217 30% 22%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 30% 22%;
+    --accent-foreground: 210 40% 96%;
+    --destructive: 0 91% 71%;
+    --destructive-foreground: 222 47% 11%;
+    --border: 215 25% 27%;
+    --input: 215 25% 27%;
+    --ring: 217 91% 60%;
+
+    /* Status tokens — brighter for dark contrast */
+    --success: 158 64% 52%;
+    --success-foreground: 222 47% 11%;
+    --warning: 43 96% 56%;
+    --warning-foreground: 222 47% 11%;
+    --surface-elevated: 217 30% 25%;
+    --surface-sunken: 222 47% 9%;
+
+    --sidebar-background: 210 47% 7%;
+    --sidebar-foreground: 210 20% 92%;
+    --sidebar-primary: 42 52% 54%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 40% 14%;
+    --sidebar-accent-foreground: 210 20% 92%;
+    --sidebar-border: 210 35% 18%;
+    --sidebar-ring: 42 52% 54%;
+    --sidebar-muted-foreground: 210 15% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+/* Background dot pattern */
+.bg-grid-pattern {
+  background-image: radial-gradient(circle, hsl(var(--border)) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+
+@layer components {
+  .status-badge-open {
+    @apply bg-blue-100 text-blue-700 border-blue-200;
+  }
+  .status-badge-in-progress {
+    @apply bg-orange-100 text-orange-700 border-orange-200;
+  }
+  .status-badge-resolved {
+    @apply bg-green-100 text-green-700 border-green-200;
+  }
+  .status-badge-closed {
+    @apply bg-gray-100 text-gray-500 border-gray-200;
+  }
+  .status-badge-reopened {
+    @apply bg-red-100 text-red-700 border-red-200;
+  }
+}
+
+/* Page transitions */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Chat message entry — gentle fade + slide-up */
+@keyframes messageIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-message-in {
+  animation: messageIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Slim, modern scrollbar (opt-in via class) */
+.scrollbar-slim {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--border)) transparent;
+}
+.scrollbar-slim::-webkit-scrollbar { width: 6px; height: 6px; }
+.scrollbar-slim::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-slim::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 9999px;
+}
+.scrollbar-slim::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.5);
+}
+
+/* Tasteful hover-lift for cards/buttons (opt-in) */
+.hover-lift {
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+.hover-lift:hover {
+  transform: translateY(-1px);
+}
+
+/* Native UI (form controls, native scrollbars) follows the active theme */
+:root { color-scheme: light; }
+.dark { color-scheme: dark; }
+
+/* Smooth light <-> dark transition for color/background/border.
+   Per-element transition utilities (transition-colors, etc.) override this
+   where present; reduced-motion users get it disabled below. */
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: 250ms;
+  transition-timing-function: ease;
+}
+
+/* Softer, deeper elevation for overlays in dark mode (dialogs, popovers, toasts).
+   Only large/uncolored shadows are adjusted so accent shadows stay intact. */
+.dark .shadow-lg { --tw-shadow: 0 10px 24px -6px rgb(0 0 0 / 0.5); }
+.dark .shadow-xl { --tw-shadow: 0 16px 40px -8px rgb(0 0 0 / 0.55); }
+.dark .shadow-2xl { --tw-shadow: 0 24px 56px -12px rgb(0 0 0 / 0.6); }
+
+/* Accessibility: honor reduced-motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

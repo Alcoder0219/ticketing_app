@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="/amsons-logo.png" />
+    <!-- TODO: Set the document title to the name of your application -->
+    <title>Amsons Group Support Portal</title>
+    <meta name="description" content="Amsons Group Support Portal">
+    <meta name="author" content="Amsons Group" />
+
+    
+    
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/7b523df4-548f-4277-bd28-50130718b438">
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@Lovable" />
+    <meta name="twitter:image" content="https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/7b523df4-548f-4277-bd28-50130718b438">
+    <meta property="og:title" content="Ticketing Support Portal">
+  <meta name="twitter:title" content="Ticketing Support Portal">
+  <meta property="og:description" content="Ticketing Support Portal">
+  <meta name="twitter:description" content="Ticketing Support Portal">
+
+  <!-- Apply saved/system theme before first paint to avoid a flash (FOUC).
+       Mirrors next-themes (storageKey "theme", class strategy). -->
+  <script>
+    (function () {
+      try {
+        var stored = localStorage.getItem('theme');
+        var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        var isDark = stored === 'dark' || ((!stored || stored === 'system') && systemDark);
+        var root = document.documentElement;
+        if (isDark) root.classList.add('dark');
+        root.style.colorScheme = isDark ? 'dark' : 'light';
+      } catch (e) {}
+    })();
+  </script>
+</head>
+
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
