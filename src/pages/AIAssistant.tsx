@@ -14,7 +14,7 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Bot, Plus, Search, Send, Trash2, Download, MessageSquare, Loader2, Ticket as TicketIcon, Paperclip, X, FileText, Mic, MicOff } from "lucide-react";
+import { Bot, Plus, Search, Send, Trash2, Download, MessageSquare, Loader2, Ticket as TicketIcon, Paperclip, X, FileText, Mic, MicOff, Languages } from "lucide-react";
 import { supabase } from "@/integrations/api/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePermissions } from "@/contexts/PermissionsContext";
@@ -24,7 +24,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { cn } from "@/lib/utils";
 import { formatDate } from "@/utils/dateFormat";
-import { detectTicketIntent, extractTicketDetails, ExtractedPriority } from "@/utils/extractTicket";
+import { ExtractedPriority } from "@/utils/extractTicket";
+import { LANGUAGES, LangCode, loadLang, saveLang, isRtl, voiceLocale, scriptHint, welcomeText, langOption } from "@/lib/aiLang";
 
 interface Conversation { id: string; title: string; updated_at: string }
 interface ChipOption { label: string; value: string }
@@ -37,6 +38,10 @@ interface ConfirmCardData {
   raisedByName: string;
   unitName: string;
   resolved?: boolean;
+  // Multilingual intake (optional): stored on the ticket for traceability.
+  originalLanguage?: string;
+  originalMessage?: string;
+  translatedMessage?: string;
 }
 interface Message {
   id?: string;
@@ -47,6 +52,8 @@ interface Message {
   chipKind?: "view-tickets";
   chipsDisabled?: boolean;
   confirmCard?: ConfirmCardData;
+  /** Detected/selected language of this message — drives RTL rendering. */
+  lang?: string;
 }
 
 interface TicketContext {
@@ -70,20 +77,30 @@ const QUICK_PROMPTS = [
   "📈 What are common ticket issues?",
 ];
 
-function welcomeMessage(firstName: string): Message {
+function welcomeMessage(firstName: string, lang: LangCode = "en"): Message {
   return {
     role: "assistant",
-    content: `👋 Hello ${firstName}! I'm Ticketing Assistant, your AI helper for the support portal. I can help you with:
-
-- Finding and checking ticket status
-- Understanding SLA policies
-- Generating ticket summaries and reports
-- Answering questions about the ticketing system
-- Helping you raise tickets faster
-
-What can I help you with today?`,
+    content: welcomeText(firstName, lang),
     created_at: new Date().toISOString(),
+    lang,
   };
+}
+
+/** Localized intro shown above the ticket confirmation card. */
+function cardIntro(lang: string, hasDept: boolean): string {
+  if (lang === "sw") {
+    return hasDept
+      ? "Haya ndiyo niliyoyapata kutoka kwa ujumbe wako. Kagua na uthibitishe ili kuwasilisha:"
+      : "Sikuweza kubaini idara. Tafadhali chagua idara, kisha uthibitishe ili kuwasilisha:";
+  }
+  if (lang === "ar") {
+    return hasDept
+      ? "هذا ما فهمته من رسالتك. راجع البيانات وأكِّد للإرسال:"
+      : "لم أتمكن من تحديد القسم. الرجاء اختيار القسم ثم التأكيد للإرسال:";
+  }
+  return hasDept
+    ? "Here's what I picked up from your message. Review and confirm to submit:"
+    : "I couldn't tell which department this belongs to. Please pick one, then confirm to submit:";
 }
 
 export default function AIAssistant() {
@@ -118,7 +135,11 @@ export default function AIAssistant() {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [streaming, setStreaming] = useState(false);
+  const [lang, setLang] = useState<LangCode>(loadLang);
   const [isListening, setIsListening] = useState(false);
+  const langRef = useRef<LangCode>(lang);
+  useEffect(() => { langRef.current = lang; saveLang(lang); }, [lang]);
+  const inputRtl = isRtl(lang);
   const [voiceSupported, setVoiceSupported] = useState(true);
   const recognitionRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -164,9 +185,12 @@ export default function AIAssistant() {
       setIsListening(false);
     } else {
       try {
+        // Transcribe in the currently selected language (English/Swahili/Arabic).
+        rec.lang = voiceLocale(langRef.current);
         rec.start();
         setIsListening(true);
-        toast.info("Listening… speak your ticket or question");
+        const opt = langOption(langRef.current);
+        toast.info(`Listening (${opt.flag} ${opt.label})… speak your ticket or question`);
       } catch {
         setIsListening(false);
       }
@@ -223,7 +247,7 @@ export default function AIAssistant() {
   // Load messages for active conversation
   useEffect(() => {
     if (!conversationId) {
-      setMessages([welcomeMessage(firstName)]);
+      setMessages([welcomeMessage(firstName, lang)]);
       return;
     }
     (async () => {
@@ -234,7 +258,7 @@ export default function AIAssistant() {
         .order("created_at", { ascending: true });
       if (error) { toast.error("Failed to load conversation"); return; }
       const rows = ((data || []) as unknown) as Message[];
-      setMessages(rows.length ? rows : [welcomeMessage(firstName)]);
+      setMessages(rows.length ? rows : [welcomeMessage(firstName, lang)]);
     })();
   }, [conversationId, firstName]);
 
@@ -266,7 +290,7 @@ export default function AIAssistant() {
     : "New Conversation";
 
   const handleNewChat = () => {
-    setMessages([welcomeMessage(firstName)]);
+    setMessages([welcomeMessage(firstName, lang)]);
     setInput("");
     navigate("/ai-assistant");
   };
@@ -278,10 +302,10 @@ export default function AIAssistant() {
     ]);
   };
 
-  const pushUser = (content: string) => {
+  const pushUser = (content: string, msgLang?: string) => {
     setMessages(prev => [
       ...prev,
-      { role: "user", content, created_at: new Date().toISOString(), id: "flow-u-" + Date.now() },
+      { role: "user", content, created_at: new Date().toISOString(), id: "flow-u-" + Date.now(), lang: msgLang },
     ]);
   };
 
@@ -313,6 +337,10 @@ export default function AIAssistant() {
         raised_by: user.id,
         unit_id: profile?.unit_id ?? null,
         status: "open",
+        // Multilingual intake metadata (optional; null for non-AI tickets).
+        original_language: card.originalLanguage ?? null,
+        original_message: card.originalMessage ?? null,
+        translated_message: card.translatedMessage ?? null,
       } as any)
       .select("id, ticket_number, created_at")
       .single();
@@ -405,22 +433,42 @@ export default function AIAssistant() {
 
     setInput("");
 
-    // Single-prompt ticket creation: extract everything and show a confirmation card.
-    if (detectTicketIntent(content)) {
-      pushUser(content);
-      const extracted = extractTicketDetails(content, activeDepartments);
+    // Immediate RTL hint for the user's own bubble (Arabic script only).
+    const userLangHint = scriptHint(content) || lang;
+
+    setStreaming(true);
+
+    // 1) Multilingual classify + extract. Any failure falls back to chat.
+    let cls: any = null;
+    try {
+      const { data } = await supabase.functions.invoke("ai-classify-extract", {
+        body: { message: content, selected_language: lang },
+      });
+      cls = data;
+    } catch {
+      cls = null;
+    }
+    const detectedLang = (cls?.language as string) || userLangHint;
+
+    // 2) Ticket intent → show an editable confirmation card (kept ephemeral,
+    //    matching the previous single-prompt flow — not persisted to a conversation).
+    if (cls?.intent === "ticket") {
+      setStreaming(false);
+      pushUser(content, userLangHint);
       pushAssistant({
-        content: extracted.departmentId
-          ? "Here's what I picked up from your message. Review and confirm to submit:"
-          : "I couldn't tell which department this belongs to. Please pick one, then confirm to submit:",
+        lang: detectedLang,
+        content: cardIntro(detectedLang, !!cls.departmentId),
         confirmCard: {
-          title: extracted.title,
-          description: extracted.description,
-          departmentId: extracted.departmentId,
-          departmentName: extracted.departmentName,
-          priority: extracted.priority,
+          title: cls.title || content,
+          description: cls.description || cls.title || content,
+          departmentId: cls.departmentId ?? null,
+          departmentName: cls.departmentName ?? null,
+          priority: (cls.priority as ExtractedPriority) || "medium",
           raisedByName: profile?.name || "—",
           unitName: unitName || "—",
+          originalLanguage: detectedLang,
+          originalMessage: cls.originalMessage || content,
+          translatedMessage: cls.translatedMessage || content,
         },
       });
       return;
@@ -435,12 +483,12 @@ export default function AIAssistant() {
         .insert({ user_id: user.id, title })
         .select("id")
         .single();
-      if (error || !data) { toast.error("Failed to create conversation"); return; }
+      if (error || !data) { toast.error("Failed to create conversation"); setStreaming(false); return; }
       convId = (data as any).id;
       queryClient.invalidateQueries({ queryKey: ["ai_conversations"] });
     }
 
-    const userMsg: Message = { role: "user", content, created_at: new Date().toISOString() };
+    const userMsg: Message = { role: "user", content, created_at: new Date().toISOString(), lang: userLangHint };
     const display = messages.length === 1 && !messages[0].id ? [userMsg] : [...messages, userMsg];
     setMessages(display);
 
@@ -453,8 +501,6 @@ export default function AIAssistant() {
       .slice(-10)
       .map(m => ({ role: m.role, content: m.content }));
 
-    setStreaming(true);
-
     try {
       const { data, error } = await supabase.functions.invoke("chat-with-ai", {
         body: {
@@ -466,6 +512,7 @@ export default function AIAssistant() {
             department: deptName,
           },
           ticket_context: ticketContext,
+          selected_language: lang,
         },
       });
 
@@ -483,7 +530,7 @@ export default function AIAssistant() {
       });
       await supabase.from("ai_conversations" as any).update({ updated_at: new Date().toISOString() }).eq("id", convId);
 
-      setMessages(prev => [...prev, { role: "assistant", content: reply, created_at: new Date().toISOString(), id: "tmp-" + Date.now() }]);
+      setMessages(prev => [...prev, { role: "assistant", content: reply, created_at: new Date().toISOString(), id: "tmp-" + Date.now(), lang: detectedLang }]);
       setStreaming(false);
 
       if (!conversationId) navigate(`/ai-assistant/${convId}`, { replace: true });
@@ -499,7 +546,7 @@ export default function AIAssistant() {
 
 
   const handleClearChat = async () => {
-    if (!conversationId) { setMessages([welcomeMessage(firstName)]); return; }
+    if (!conversationId) { setMessages([welcomeMessage(firstName, lang)]); return; }
     const { error } = await supabase.from("ai_conversations" as any).delete().eq("id", conversationId);
     if (error) { toast.error("Failed to clear chat"); return; }
     toast.success("Conversation deleted");
@@ -677,10 +724,32 @@ export default function AIAssistant() {
           </div>
 
           <div className="border-t border-border/70 p-4 space-y-2.5">
+            {/* Language selector + auto-detect indicator */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5">
+                <Languages className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                <Select value={lang} onValueChange={(v) => setLang(v as LangCode)}>
+                  <SelectTrigger className="h-8 w-[168px] text-xs rounded-lg" aria-label="Assistant language">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LANGUAGES.map((l) => (
+                      <SelectItem key={l.code} value={l.code} className="text-xs">
+                        <span className="mr-1.5">{l.flag}</span>{l.label} · {l.native}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <span className="text-[10px] text-muted-foreground/70 hidden sm:inline">
+                Auto-detects 🇺🇸 English · 🇹🇿 Swahili · 🇸🇦 Arabic
+              </span>
+            </div>
             <div className="flex items-end gap-1.5 rounded-2xl border border-border/70 bg-background px-2 py-1.5 shadow-sm transition-all duration-200 focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10">
               <Textarea
                 ref={inputRef}
                 value={input}
+                dir={inputRtl ? "rtl" : "ltr"}
                 onChange={(e) => setInput(e.target.value.slice(0, 2000))}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
@@ -697,7 +766,10 @@ export default function AIAssistant() {
                 }
                 disabled={streaming}
                 rows={1}
-                className="resize-none min-h-[40px] max-h-[120px] flex-1 border-0 bg-transparent px-2 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                className={cn(
+                  "resize-none min-h-[40px] max-h-[120px] flex-1 border-0 bg-transparent px-2 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0",
+                  inputRtl && "text-right",
+                )}
               />
               <Button
                 type="button"
@@ -768,12 +840,19 @@ function MessageBubble({
 }) {
   const isUser = msg.role === "user";
   const ts = msg.created_at ? formatDate(msg.created_at, true) : "";
+  const rtl = isRtl(msg.lang);
 
   if (isUser) {
     return (
       <div className="flex items-start gap-2.5 justify-end animate-message-in">
         <div className="flex flex-col items-end max-w-[78%]">
-          <div className="bg-primary text-primary-foreground rounded-2xl rounded-tr-md px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap shadow-sm shadow-primary/20">
+          <div
+            dir={rtl ? "rtl" : undefined}
+            className={cn(
+              "bg-primary text-primary-foreground rounded-2xl rounded-tr-md px-4 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap shadow-sm shadow-primary/20",
+              rtl && "text-right",
+            )}
+          >
             {msg.content}
           </div>
           <span className="text-[10px] text-muted-foreground mt-1.5 mr-1">{ts}</span>
@@ -800,7 +879,13 @@ function MessageBubble({
               <span className="h-2 w-2 rounded-full bg-muted-foreground/60 animate-bounce" style={{ animationDelay: "300ms" }} />
             </div>
           ) : (
-            <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-pre:my-2">
+            <div
+              dir={rtl ? "rtl" : undefined}
+              className={cn(
+                "prose prose-sm dark:prose-invert max-w-none prose-p:my-1 prose-ul:my-1 prose-ol:my-1 prose-pre:my-2",
+                rtl && "text-right",
+              )}
+            >
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
             </div>
           )}

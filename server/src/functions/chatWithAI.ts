@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { models } from '../models/index.js';
 import { env } from '../config/env.js';
 import { getUserRole, roleNameVariants } from '../auth/authz.js';
+import { sanitizeInput, normalizeLang, INJECTION_GUARD, LANG_NAMES } from './aiShared.js';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -68,6 +69,10 @@ export async function handleChatWithAI(req: Request, res: Response) {
 
     const userCtx = req.body?.user_context ?? {};
     const ticketCtx = req.body?.ticket_context;
+    const selectedLang = normalizeLang(req.body?.selected_language);
+    // Sanitize every message body (Unicode NFC + strip control chars) before it
+    // reaches the model — multilingual-safe and blocks hidden-payload injection.
+    for (const m of messages) m.content = sanitizeInput(m.content, 2000);
     const latest = messages[messages.length - 1]?.content ?? '';
 
     const role = (await getUserRole(req.auth!.userId)) ?? userCtx.role ?? null;
@@ -92,7 +97,15 @@ export async function handleChatWithAI(req: Request, res: Response) {
       : '';
     const liveBlock = dataContext ? `\n\nLIVE DATABASE DATA:\n${dataContext}\n\nUse ONLY these numbers; never invent counts.` : '';
 
-    const systemPrompt = `You are Ticketing Assistant for the Ticketing Support Portal (a multi-plant ticketing system).\n${userLine}${ticketLine}\nBe concise, structured and professional. Use markdown tables when listing tickets. Status values: open (Pending), in_progress, resolved, closed, reopened.${liveBlock}`;
+    // Multilingual directive: detect the user's language and reply in it. The
+    // selected language is only a fallback when the message is ambiguous.
+    const languageBlock =
+      `\n\nLANGUAGE: The user may write in English, Swahili or Arabic. Detect the language of the user's ` +
+      `latest message and ALWAYS reply in that SAME language, using correct script and natural phrasing. ` +
+      `If the language is ambiguous, reply in ${LANG_NAMES[selectedLang]}. Keep numbers, ticket IDs and ` +
+      `technical field names as-is. For Arabic, write right-to-left with correct punctuation.`;
+
+    const systemPrompt = `You are Ticketing Assistant for the Ticketing Support Portal (a multi-plant ticketing system).\n${userLine}${ticketLine}\nBe concise, structured and professional. Use markdown tables when listing tickets. Status values: open (Pending), in_progress, resolved, closed, reopened.${liveBlock}${languageBlock}\n\n${INJECTION_GUARD}`;
 
     const chatMessages = [
       { role: 'system', content: systemPrompt },
@@ -103,7 +116,8 @@ export async function handleChatWithAI(req: Request, res: Response) {
       ? 'https://api.openai.com/v1/chat/completions'
       : 'https://ai.gateway.lovable.dev/v1/chat/completions';
     const apiKey = env.openaiApiKey || env.lovableApiKey;
-    const modelName = env.openaiApiKey ? 'gpt-3.5-turbo' : 'google/gemini-2.5-flash';
+    // gpt-4o handles Swahili/Arabic far better than gpt-3.5-turbo (key lacks 4o-mini access).
+    const modelName = env.openaiApiKey ? 'gpt-4o' : 'google/gemini-2.5-flash';
 
     const resp = await fetch(endpoint, {
       method: 'POST',

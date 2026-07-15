@@ -236,6 +236,10 @@ const tickets = new Schema(
     voice_recording_url: { type: String, default: null },
     voice_recording_duration: { type: Number, default: null },
     remarks: { type: String, default: null },
+    // Multilingual AI intake (optional; null for tickets created the classic way).
+    original_language: { type: String, default: null },
+    original_message: { type: String, default: null },
+    translated_message: { type: String, default: null },
     progress_percent: { type: Number, default: null },
     target_date: { type: Date, default: null },
     next_target_date: { type: Date, default: null },
