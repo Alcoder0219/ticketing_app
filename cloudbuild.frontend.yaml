@@ -1,0 +1,48 @@
+# Cloud Build config for the FRONTEND — connect this to a GitHub push trigger
+# (branch: main) for continuous deployment to Cloud Run.
+#
+# The backend URL is baked into the bundle at BUILD time via --build-arg, so it
+# MUST be provided here as the _VITE_API_URL substitution (set on the trigger).
+#
+# Required substitutions (set on the trigger):
+#   _REGION         e.g. europe-west1
+#   _AR_REPO        Artifact Registry repo name, e.g. ticketing
+#   _SERVICE        Cloud Run service name, e.g. ticketing-frontend
+#   _VITE_API_URL   the deployed backend URL, e.g. https://ticketing-backend-xxxx.a.run.app
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --build-arg
+      - VITE_API_URL=${_VITE_API_URL}
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:$SHORT_SHA
+      - -f
+      - Dockerfile.frontend
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    args: [push, '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:$SHORT_SHA']
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:$SHORT_SHA
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:$SHORT_SHA
+
+substitutions:
+  _REGION: europe-west1
+  _AR_REPO: ticketing
+  _SERVICE: ticketing-frontend
+  _VITE_API_URL: https://REPLACE-with-backend-cloud-run-url
+
+options:
+  logging: CLOUD_LOGGING_ONLY

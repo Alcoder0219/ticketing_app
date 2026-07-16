@@ -1,0 +1,37 @@
+# Frontend build context (root). Keep the image small and never ship secrets.
+node_modules
+**/node_modules
+.git
+.gitignore
+.github
+
+# Build outputs
+dist
+dist-ssr
+build
+coverage
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs
+npm-debug.log*
+
+# The backend has its own image/build — exclude it from the frontend context.
+server
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+
+# Deployment + docs not needed inside the frontend image
+Dockerfile*
+DEPLOYMENT.md
+README.md
+playwright.config.ts
+playwright-fixture.ts

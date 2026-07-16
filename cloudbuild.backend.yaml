@@ -1,0 +1,44 @@
+# Cloud Build config for the BACKEND — connect this to a GitHub push trigger
+# (branch: main) for continuous deployment to Cloud Run.
+#
+# Required substitutions (set on the trigger):
+#   _REGION   e.g. europe-west1
+#   _AR_REPO  Artifact Registry repo name, e.g. ticketing
+#   _SERVICE  Cloud Run service name, e.g. ticketing-backend
+steps:
+  # Build the backend image from ./server using server/Dockerfile.
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/backend:$SHORT_SHA
+      - -f
+      - server/Dockerfile
+      - ./server
+
+  - name: gcr.io/cloud-builders/docker
+    args: [push, '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/backend:$SHORT_SHA']
+
+  # Deploy to Cloud Run. Env vars / secrets are configured ON THE SERVICE
+  # (Console or the gcloud command in DEPLOYMENT.md), not here, so secrets never
+  # live in the repo.
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/backend:$SHORT_SHA
+      - --region=${_REGION}
+      - --platform=managed
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/backend:$SHORT_SHA
+
+substitutions:
+  _REGION: europe-west1
+  _AR_REPO: ticketing
+  _SERVICE: ticketing-backend
+
+options:
+  logging: CLOUD_LOGGING_ONLY

@@ -1,0 +1,27 @@
+# Backend build context (./server). Keep the image small and never ship secrets.
+node_modules
+.git
+.gitignore
+
+# Build output (recompiled inside the image)
+dist
+coverage
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Local-disk uploads (Cloudinary is used in production)
+uploads
+
+# Logs
+*.log
+logs
+npm-debug.log*
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store
+Dockerfile

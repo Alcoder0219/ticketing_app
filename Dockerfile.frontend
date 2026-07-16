@@ -1,0 +1,38 @@
+# syntax=docker/dockerfile:1
+# ─────────────────────────────────────────────────────────────────────────────
+# Frontend (React + Vite) → static bundle served by nginx on Cloud Run.
+# Multi-stage: build the production bundle, then serve it with nginx.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ---- Stage 1: build the Vite production bundle ----
+FROM node:22-alpine AS build
+WORKDIR /app
+
+# IMPORTANT: Vite inlines VITE_* variables at BUILD time, so the backend URL must
+# be supplied as a build argument — Cloud Run runtime env vars cannot change it.
+ARG VITE_API_URL
+ENV VITE_API_URL=${VITE_API_URL}
+
+# Install deps against the lockfile first (better layer caching).
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Build.
+COPY . .
+RUN npm run build
+
+# ---- Stage 2: serve with nginx ----
+FROM nginx:1.27-alpine AS runtime
+
+# Cloud Run injects PORT (defaults to 8080). The official nginx image runs
+# envsubst over /etc/nginx/templates/*.template at startup; we only substitute
+# ${PORT} so nginx variables like $uri are left untouched.
+ENV PORT=8080
+ENV NGINX_ENVSUBST_FILTER=^PORT$
+
+COPY nginx.conf /etc/nginx/templates/default.conf.template
+COPY --from=build /app/dist /usr/share/nginx/html
+
+EXPOSE 8080
+# Entrypoint (inherited from the nginx image) runs envsubst, then this CMD.
+CMD ["nginx", "-g", "daemon off;"]
