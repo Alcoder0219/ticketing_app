@@ -1,21 +1,39 @@
-# Cloud Build config for the FRONTEND — connect this to a GitHub push trigger
-# (branch: main) for continuous deployment to Cloud Run.
+# Cloud Build config for the FRONTEND (React/Vite → nginx on Cloud Run).
 #
-# The backend URL is baked into the bundle at BUILD time via --build-arg, so it
-# MUST be provided here as the _VITE_API_URL substitution (set on the trigger).
+# _VITE_API_URL is baked into the JS bundle at BUILD time (Vite inlines VITE_*),
+# so it MUST be present when `docker build` runs. It is resolved from, in order:
+#   1. a substitution variable set on the Cloud Build TRIGGER  (recommended), else
+#   2. the default in the `substitutions:` block at the bottom of this file.
 #
-# Required substitutions (set on the trigger):
-#   _REGION         e.g. europe-west1
-#   _AR_REPO        Artifact Registry repo name, e.g. ticketing
-#   _SERVICE        Cloud Run service name, e.g. ticketing-frontend
-#   _VITE_API_URL   the deployed backend URL, e.g. https://ticketing-backend-xxxx.a.run.app
-steps:
-  # Print the URL that will be baked into the bundle (visible in Cloud Build logs).
-  - name: gcr.io/cloud-builders/docker
-    entrypoint: bash
-    args: ['-c', 'echo "▶ Frontend will be built with VITE_API_URL=${_VITE_API_URL}"']
+# If it ends up empty the FIRST step fails immediately with instructions, so a
+# misconfigured build can never silently ship a localhost bundle.
+#
+# IMPORTANT: this only takes effect if the build actually USES this file. The
+# trigger's "Configuration" must be "Cloud Build configuration file (yaml/json)"
+# pointing at /cloudbuild.frontend.yaml — NOT "Dockerfile" and NOT a Cloud Run
+# "deploy from source" (those ignore this file and never pass --build-arg).
 
-  - name: gcr.io/cloud-builders/docker
+steps:
+  # 1) Preflight: prove the substitution reached the build; fail fast if empty.
+  - id: check-substitution
+    name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        echo "▶ _VITE_API_URL=[${_VITE_API_URL}]"
+        if [ -z "${_VITE_API_URL}" ]; then
+          echo "✗ _VITE_API_URL is EMPTY — the build did not receive the backend URL."
+          echo "  Fix: add a substitution variable named _VITE_API_URL on the Cloud"
+          echo "  Build trigger (value = the backend Cloud Run URL), or run manually:"
+          echo "    gcloud builds submit --config=cloudbuild.frontend.yaml \\"
+          echo "      --substitutions=_VITE_API_URL=https://<backend-cloud-run-url>"
+          exit 1
+        fi
+
+  # 2) Build the image, passing the URL as a build arg so Vite bakes it in.
+  - id: build
+    name: gcr.io/cloud-builders/docker
     args:
       - build
       - --build-arg
@@ -26,10 +44,14 @@ steps:
       - Dockerfile.frontend
       - .
 
-  - name: gcr.io/cloud-builders/docker
+  # 3) Push the image to Artifact Registry.
+  - id: push
+    name: gcr.io/cloud-builders/docker
     args: [push, '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:$SHORT_SHA']
 
-  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+  # 4) Deploy to Cloud Run.
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
     entrypoint: gcloud
     args:
       - run
@@ -43,6 +65,9 @@ steps:
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/frontend:$SHORT_SHA
 
+# Default values — used only when the trigger does NOT override them. Keeping the
+# real backend URL here means even a trigger with no substitutions still builds
+# correctly (and `gcloud builds submit` with no --substitutions works too).
 substitutions:
   _REGION: asia-south1
   _AR_REPO: ticketing
