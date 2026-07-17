@@ -12,6 +12,7 @@ import {
   Download, Upload, FileCheck2, Loader2, CheckCircle2, XCircle, AlertCircle, FileText,
 } from "lucide-react";
 import { supabase } from "@/integrations/api/client";
+import { apiBase } from "@/integrations/api/http";
 import { useToast } from "@/hooks/use-toast";
 
 interface Props {
@@ -259,7 +260,7 @@ export function BulkImportUsersDialog({ open, onOpenChange, departments, units, 
       setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, status: "importing" } : r)));
       const r = rows[i];
       try {
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/functions/v1/admin-create-user`, {
+        const res = await fetch(`${apiBase()}/functions/v1/admin-create-user`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({

@@ -22,6 +22,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Search, Shield, PlusCircle, Pencil, Trash2, Eye, EyeOff, Loader2, FileUp } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/api/client";
+import { apiBase } from "@/integrations/api/http";
 import { useToast } from "@/hooks/use-toast";
 import type { AppRole } from "@/integrations/api/types";
 import { BulkImportUsersDialog } from "@/components/BulkImportUsersDialog";
@@ -221,7 +222,7 @@ export default function ManageUsers() {
     setFormLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/functions/v1/admin-create-user`, {
+      const res = await fetch(`${apiBase()}/functions/v1/admin-create-user`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -312,7 +313,7 @@ export default function ManageUsers() {
       // Update email/password via edge function if provided
       if ((form.email && form.email.trim()) || (form.password && form.password.length > 0)) {
         const { data: { session } } = await supabase.auth.getSession();
-        const res = await fetch(`${import.meta.env.VITE_API_URL}/functions/v1/admin-update-user-credentials`, {
+        const res = await fetch(`${apiBase()}/functions/v1/admin-update-user-credentials`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -356,7 +357,7 @@ export default function ManageUsers() {
 
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/functions/v1/admin-delete-user`, {
+      const res = await fetch(`${apiBase()}/functions/v1/admin-delete-user`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -1,21 +1,24 @@
 // Base HTTP layer for the MongoDB/Express backend that replaces Supabase.
-// Holds the API base URL and the access token, and exposes a small fetch helper.
+// This is the SINGLE SOURCE OF TRUTH for the backend URL — every API call, file
+// upload and Socket.IO connection resolves through apiBase(). Nothing else in the
+// app may read VITE_API_URL directly or hardcode a URL.
 
 // VITE_* variables are inlined by Vite at BUILD time, so VITE_API_URL must be
 // supplied when the frontend image is built (docker --build-arg VITE_API_URL=…
 // / Cloud Build _VITE_API_URL), NOT as a Cloud Run runtime env var.
 const RAW_API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
 
-// Temporary diagnostic (deployment audit): prints exactly what was baked in so you
-// can confirm in the browser console which build is actually live.
-console.log('API BASE:', RAW_API_URL || '(not set)');
+// Temporary diagnostic (deployment audit): confirm the bundled URL in the console.
+console.log('Production API URL:', import.meta.env.VITE_API_URL);
 
-// NO localhost fallback anywhere — not even in dev. If VITE_API_URL was not baked
-// into the build, fail loudly (blank page + this error) instead of silently
-// calling localhost. This guarantees a production bundle can never contain a
-// localhost URL, and makes a stale/misbuilt deploy obvious immediately.
+// No fallback of any kind. If the backend URL was not baked into the build, fail
+// loudly (blank page + this error) instead of defaulting to any local address —
+// so a production bundle can never contain a non-production URL and a stale or
+// misbuilt deploy is obvious immediately.
 if (!RAW_API_URL) {
-  throw new Error('VITE_API_URL is missing during build');
+  throw new Error(
+    'VITE_API_URL is missing. The frontend must be built with the backend Cloud Run URL.',
+  );
 }
 
 const API_BASE: string = RAW_API_URL;
