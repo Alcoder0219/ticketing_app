@@ -10,6 +10,11 @@
 #   _SERVICE        Cloud Run service name, e.g. ticketing-frontend
 #   _VITE_API_URL   the deployed backend URL, e.g. https://ticketing-backend-xxxx.a.run.app
 steps:
+  # Print the URL that will be baked into the bundle (visible in Cloud Build logs).
+  - name: gcr.io/cloud-builders/docker
+    entrypoint: bash
+    args: ['-c', 'echo "▶ Frontend will be built with VITE_API_URL=${_VITE_API_URL}"']
+
   - name: gcr.io/cloud-builders/docker
     args:
       - build
