@@ -70,7 +70,7 @@ images:
 # correctly (and `gcloud builds submit` with no --substitutions works too).
 substitutions:
   _REGION: asia-south1
-  _AR_REPO: ticketing
+  _AR_REPO: cloud-run-source-deploy
   _SERVICE: ticketing-frontend
   _VITE_API_URL: https://ticketing-backend-787175093879.asia-south1.run.app
 
