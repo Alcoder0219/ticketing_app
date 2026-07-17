@@ -8,14 +8,10 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 
-# IMPORTANT: Vite inlines VITE_* variables at BUILD time, so the backend URL must
-# be supplied as a build argument — Cloud Run runtime env vars cannot change it.
 ARG VITE_API_URL
 ENV VITE_API_URL=${VITE_API_URL}
 
-# Fail fast (and print the value in the build logs) if the backend URL is missing.
-# This prevents silently shipping a bundle that would call localhost — the exact
-# failure that happens when the image is built without --build-arg VITE_API_URL.
+
 RUN echo "▶ Building frontend with VITE_API_URL=${VITE_API_URL}" && \
     if [ -z "${VITE_API_URL}" ]; then \
       echo "✗ ERROR: VITE_API_URL build-arg is empty. Build with:" >&2; \
