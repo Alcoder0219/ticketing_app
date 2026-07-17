@@ -6,23 +6,19 @@
 // / Cloud Build _VITE_API_URL), NOT as a Cloud Run runtime env var.
 const RAW_API_URL = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
 
-// Temporary diagnostic (deployment audit): prints what was baked into the bundle.
+// Temporary diagnostic (deployment audit): prints exactly what was baked in so you
+// can confirm in the browser console which build is actually live.
 console.log('API BASE:', RAW_API_URL || '(not set)');
 
-// Production must NEVER fall back to localhost — a deployed app pointing at
-// localhost silently breaks. Only dev gets the localhost convenience default; in
-// a production build a missing value stays empty (relative, same-origin) and is
-// reported loudly so the misconfiguration is obvious instead of hidden.
-const API_BASE: string = RAW_API_URL || (import.meta.env.DEV ? 'http://localhost:4000' : '');
-
+// NO localhost fallback anywhere — not even in dev. If VITE_API_URL was not baked
+// into the build, fail loudly (blank page + this error) instead of silently
+// calling localhost. This guarantees a production bundle can never contain a
+// localhost URL, and makes a stale/misbuilt deploy obvious immediately.
 if (!RAW_API_URL) {
-  const message =
-    'VITE_API_URL is not set — it must be provided at BUILD time (docker --build-arg ' +
-    'VITE_API_URL=<backend-url> / Cloud Build _VITE_API_URL). API calls will fail ' +
-    'until the frontend is rebuilt with the backend URL.';
-  if (import.meta.env.PROD) console.error('[config]', message);
-  else console.warn('[config]', message);
+  throw new Error('VITE_API_URL is missing during build');
 }
+
+const API_BASE: string = RAW_API_URL;
 
 export function apiBase(): string {
   return API_BASE.replace(/\/+$/, '');
