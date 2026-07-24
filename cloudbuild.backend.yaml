@@ -36,7 +36,7 @@ images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/backend:$SHORT_SHA
 
 substitutions:
-  _REGION: europe-west1
+  _REGION: asia-south1
   _AR_REPO: ticketing
   _SERVICE: ticketing-backend
 
