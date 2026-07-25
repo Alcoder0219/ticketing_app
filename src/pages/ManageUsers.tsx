@@ -548,7 +548,7 @@ export default function ManageUsers() {
               </div>
               <div className="space-y-2">
                 <Label>Contact</Label>
-                <Input value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })} placeholder="+91..." />
+                <Input value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })} placeholder="+255..." />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
