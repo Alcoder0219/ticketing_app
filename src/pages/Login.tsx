@@ -85,7 +85,7 @@ export default function Login() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="contact">Contact Number</Label>
-                    <Input id="contact" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="+91 9876543210" />
+                    <Input id="contact" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="+255 987654321" />
                   </div>
                 </div>
               </>
