@@ -11,11 +11,13 @@ import {
 } from "@/components/ui/select";
 import { Plus, Filter, Eye, RefreshCw, Search, FileText, Trash2, Star } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/api/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
+import { statusMap } from "@/lib/mock-data";
 import { useDeleteTicket } from "@/hooks/useDeleteTicket";
 import { AgingBadge } from "@/components/AgingBadge";
 import { useTicketsRealtime } from "@/hooks/useTicketsRealtime";
@@ -30,6 +32,7 @@ const priorities = ["low", "medium", "high", "critical"];
 
 
 export default function MyTickets() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -87,18 +90,18 @@ export default function MyTickets() {
   }, [tickets, activeTab, priorityFilter, search]);
 
   const tabs: { key: TabKey; label: string; count: number }[] = [
-    { key: "all", label: "All", count: counts.all },
-    { key: "pending", label: "Pending", count: counts.pending },
-    { key: "resolved", label: "Resolved", count: counts.resolved },
+    { key: "all", label: t("common.all"), count: counts.all },
+    { key: "pending", label: t("status.pending"), count: counts.pending },
+    { key: "resolved", label: t("status.Resolved"), count: counts.resolved },
   ];
 
   return (
-    <AppLayout title="My Tickets">
+    <AppLayout title={t("nav.myTickets")}>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold text-foreground">My Tickets</h1>
+        <h1 className="text-xl font-semibold text-foreground">{t("nav.myTickets")}</h1>
         <div className="flex items-center gap-2">
           <Button onClick={() => navigate("/create-ticket")} className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm">
-            <Plus className="h-4 w-4 mr-1" /> Add
+            <Plus className="h-4 w-4 mr-1" /> {t("common.add")}
           </Button>
           <Popover>
             <PopoverTrigger asChild>
@@ -108,22 +111,22 @@ export default function MyTickets() {
             </PopoverTrigger>
             <PopoverContent className="w-72 p-3 space-y-3" align="end">
               <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Search</label>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">{t("common.search")}</label>
                 <div className="relative">
                   <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input placeholder="Ticket ID or title..." className="pl-8 h-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+                  <Input placeholder={t("ticket.searchIdOrTitle")} className="pl-8 h-9" value={search} onChange={(e) => setSearch(e.target.value)} />
                 </div>
               </div>
               <div>
-                <label className="text-xs font-medium text-muted-foreground mb-1 block">Priority</label>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">{t("common.priority")}</label>
                 <Select value={priorityFilter} onValueChange={setPriorityFilter}>
                   <SelectTrigger className="h-9">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Priorities</SelectItem>
+                    <SelectItem value="all">{t("common.allPriorities")}</SelectItem>
                     {priorities.map((p) => (
-                      <SelectItem key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</SelectItem>
+                      <SelectItem key={p} value={p}>{t(`priority.${p}`)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -137,26 +140,26 @@ export default function MyTickets() {
         {/* Sidebar tabs */}
         <aside className="col-span-12 md:col-span-2">
           <div className="flex md:flex-col gap-1">
-            {tabs.map((t) => {
-              const active = activeTab === t.key;
+            {tabs.map((tab) => {
+              const active = activeTab === tab.key;
               const activeClass =
-                t.key === "pending"
+                tab.key === "pending"
                   ? "bg-amber-50 text-amber-700"
-                  : t.key === "resolved"
+                  : tab.key === "resolved"
                   ? "bg-emerald-50 text-emerald-700"
                   : "bg-muted text-foreground";
               return (
                 <button
-                  key={t.key}
-                  onClick={() => setActiveTab(t.key)}
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
                   className={cn(
                     "flex items-center justify-between gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors w-full text-left",
                     active ? activeClass : "text-muted-foreground hover:bg-muted/60"
                   )}
                 >
-                  <span>{t.label}</span>
+                  <span>{tab.label}</span>
                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5 bg-background/80 text-foreground border">
-                    {t.count}
+                    {tab.count}
                   </Badge>
                 </button>
               );
@@ -183,9 +186,9 @@ export default function MyTickets() {
             <Card className="border shadow-sm">
               <CardContent className="flex flex-col items-center justify-center py-16 text-center">
                 <FileText className="h-12 w-12 text-muted-foreground/40 mb-3" />
-                <p className="text-muted-foreground mb-3">No tickets found.</p>
+                <p className="text-muted-foreground mb-3">{t("ticket.noTickets")}</p>
                 <Button variant="outline" onClick={() => navigate("/create-ticket")}>
-                  <Plus className="h-4 w-4 mr-1" /> Create your first ticket
+                  <Plus className="h-4 w-4 mr-1" /> {t("ticket.createFirst")}
                 </Button>
               </CardContent>
             </Card>
@@ -209,15 +212,15 @@ export default function MyTickets() {
                       <div className="min-w-0">
                         <div className="font-bold text-foreground text-sm"><TicketIdLink ticketNumber={ticket.ticket_number}>#{ticket.ticket_number}</TicketIdLink></div>
                         <div className="text-xs text-muted-foreground mt-0.5">
-                          Assigned To - {ticket.assigned_profile?.name || "Unassigned"}
+                          {t("ticket.assignedTo")} - {ticket.assigned_profile?.name || t("ticket.unassigned")}
                         </div>
                       </div>
                       {isSuperAdmin && (
                         <button
                           onClick={(e) => { e.stopPropagation(); deleteTicket(ticket.id); }}
                           className="text-destructive hover:bg-destructive/10 rounded p-1 shrink-0"
-                          title="Delete ticket"
-                          aria-label="Delete ticket"
+                          title={t("ticket.deleteTicket")}
+                          aria-label={t("ticket.deleteTicket")}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -230,7 +233,7 @@ export default function MyTickets() {
                         {isImage ? (
                           <SignedImage src={firstImage} bucket="ticket-attachments" alt={ticket.title} className="w-full h-full object-cover" />
                         ) : (
-                          <div className="text-muted-foreground/40 text-xs">No image</div>
+                          <div className="text-muted-foreground/40 text-xs">{t("ticket.noImage")}</div>
                         )}
                       </div>
                     </div>
@@ -241,18 +244,18 @@ export default function MyTickets() {
                         {ticket.title}
                       </h3>
                       <p className="text-xs text-muted-foreground mt-1.5">
-                        Aging -{" "}
+                        {t("aging.label")} -{" "}
                         <AgingBadge
                           createdAt={ticket.created_at}
                           status={ticket.status}
                           resolvedAt={ticket.resolved_at}
                           closedAt={ticket.closed_at}
                         />
-                        {" "}/ Target Date - {ticket.target_date ? formatDate(ticket.target_date) : "-"} / Target Date count - ({targetCount})
+                        {" "}/ {t("ticket.targetDate")} - {ticket.target_date ? formatDate(ticket.target_date) : "-"} / {t("ticket.targetDateCount")} - ({targetCount})
                       </p>
                       <p className="text-xs text-muted-foreground mt-2 line-clamp-3">
-                        Latest Remark: {ticket.remarks || "—"} / Latest Remark Punch On - {formatDate(ticket.updated_at, true)}
-                        {isResolved && ticket.closing_remarks ? ` | Remark When Resolved: ${ticket.closing_remarks}` : ""}
+                        {t("ticket.latestRemark")}: {ticket.remarks || "—"} / {t("ticket.latestRemarkPunchedOn")} - {formatDate(ticket.updated_at, true)}
+                        {isResolved && ticket.closing_remarks ? ` | ${t("ticket.remarkWhenResolved")}: ${ticket.closing_remarks}` : ""}
                       </p>
                     </div>
 
@@ -264,11 +267,11 @@ export default function MyTickets() {
                             onClick={(e) => { e.stopPropagation(); navigate(`/ticket/${ticket.id}`); }}
                             className="flex items-center gap-1 text-destructive text-xs font-bold uppercase tracking-wide hover:underline"
                           >
-                            <RefreshCw className="h-3.5 w-3.5" /> Re Open
+                            <RefreshCw className="h-3.5 w-3.5" /> {t("ticket.reOpen")}
                           </button>
                         ) : (
                           <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                            {ticket.status.replace("_", " ")}
+                            {t(`status.${statusMap[ticket.status] ?? ticket.status}`, { defaultValue: ticket.status.replace("_", " ") })}
                           </span>
                         )}
                         {ticket.status === "closed" && !ticket._rated && (
@@ -276,11 +279,11 @@ export default function MyTickets() {
                             onClick={(e) => { e.stopPropagation(); setRatingTicket({ id: ticket.id, number: ticket.ticket_number }); }}
                             className="flex items-center gap-1 text-emerald-600 text-xs font-bold uppercase tracking-wide hover:underline"
                           >
-                            <Star className="h-3.5 w-3.5 fill-emerald-600" /> Give Rating
+                            <Star className="h-3.5 w-3.5 fill-emerald-600" /> {t("ticket.giveRating")}
                           </button>
                         )}
                         {ticket.status === "closed" && ticket._rated && (
-                          <div className="flex items-center gap-0.5" title={`Rated ${ticket._rating}/5`}>
+                          <div className="flex items-center gap-0.5" title={t("ticket.ratedOutOf", { rating: ticket._rating })}>
                             {[1,2,3,4,5].map((n) => (
                               <Star
                                 key={n}
@@ -298,7 +301,7 @@ export default function MyTickets() {
                       <button
                         onClick={(e) => { e.stopPropagation(); navigate(`/ticket/${ticket.id}`); }}
                         className="text-amber-500 hover:text-amber-600"
-                        aria-label="View ticket"
+                        aria-label={t("ticket.viewTicket")}
                       >
                         <Eye className="h-4 w-4" />
                       </button>

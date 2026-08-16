@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Moon, Sun, Monitor, Check } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,6 +16,7 @@ import {
  * animates the sun/moon swap via the `.dark` class.
  */
 export function ThemeToggle() {
+  const { t } = useTranslation();
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -24,10 +26,12 @@ export function ThemeToggle() {
   const current = mounted ? theme ?? "system" : "system";
 
   const options = [
-    { value: "light", label: "Light", icon: Sun },
-    { value: "dark", label: "Dark", icon: Moon },
-    { value: "system", label: "System", icon: Monitor },
+    { value: "light", label: t("header.themeLight"), icon: Sun },
+    { value: "dark", label: t("header.themeDark"), icon: Moon },
+    { value: "system", label: t("header.themeSystem"), icon: Monitor },
   ] as const;
+
+  const currentLabel = options.find((o) => o.value === current)?.label ?? current;
 
   return (
     <DropdownMenu>
@@ -36,11 +40,11 @@ export function ThemeToggle() {
           variant="ghost"
           size="icon"
           className="relative rounded-full hover:bg-muted transition-colors"
-          aria-label={`Theme: ${current}. Change theme`}
+          aria-label={t("header.changeTheme", { theme: currentLabel })}
         >
           <Sun className="h-[18px] w-[18px] rotate-0 scale-100 transition-all duration-300 dark:-rotate-90 dark:scale-0" />
           <Moon className="absolute h-[18px] w-[18px] rotate-90 scale-0 transition-all duration-300 dark:rotate-0 dark:scale-100" />
-          <span className="sr-only">Toggle theme</span>
+          <span className="sr-only">{t("header.toggleTheme")}</span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-[9rem]">

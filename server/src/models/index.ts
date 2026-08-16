@@ -82,6 +82,33 @@ const departments = new Schema(
   baseOptions,
 );
 
+// notification_logs — one row per (event, recipient). Doubles as the
+// idempotency ledger: the unique index below is what stops a retried request,
+// a double-click or a re-render from sending the same email twice.
+const notificationLogs = new Schema(
+  {
+    _id: idField,
+    event_type: { type: String, required: true, index: true },
+    /** Deterministic identity of the event — see buildEventKey() in service.ts. */
+    event_key: { type: String, required: true },
+    ticket_id: { type: String, default: null, index: true },
+    ticket_number: { type: String, default: null },
+    recipient: { type: String, required: true },
+    recipient_user_id: { type: String, default: null },
+    language: { type: String, default: 'en' },
+    subject: { type: String, default: null },
+    status: { type: String, enum: ['PENDING', 'SENT', 'FAILED', 'SKIPPED'], default: 'PENDING' },
+    message_id: { type: String, default: null },
+    error: { type: String, default: null },
+    sent_at: { type: Date, default: null },
+    created_at: ts(),
+  },
+  baseOptions,
+);
+// The idempotency guarantee. Claiming this row IS the lock: a duplicate insert
+// throws E11000 and that attempt is dropped without sending.
+notificationLogs.index({ event_key: 1, recipient: 1 }, { unique: true });
+
 // notifications
 const notifications = new Schema(
   {
@@ -111,6 +138,8 @@ const profiles = new Schema(
     contact: { type: String, default: null },
     avatar_url: { type: String, default: null },
     profile_picture: { type: String, default: null },
+    // UI + notification language. null = never chosen, treated as English.
+    preferred_language: { type: String, enum: ['en', 'sw', null], default: null },
     auth_provider: { type: String, default: 'email' },
     google_id: { type: String, default: null },
     created_at: ts(),
@@ -131,6 +160,11 @@ const rolePlantAccess = new Schema(
   },
   baseOptions,
 );
+
+// One access row per (role, plant) — this is the conflict target the settings UI
+// upserts on. Run scripts/repairRolePlantAccess.ts before first boot if the
+// collection still holds duplicates from the old broken upsert.
+rolePlantAccess.index({ role_name: 1, unit_name: 1 }, { unique: true });
 
 // roles
 const roles = new Schema(
@@ -376,6 +410,7 @@ export const models: Record<string, any> = {
   allowed_google_domains: model('allowed_google_domains', allowedGoogleDomains, 'allowed_google_domains'),
   app_settings: model('app_settings', appSettings, 'app_settings'),
   departments: model('departments', departments, 'departments'),
+  notification_logs: model('notification_logs', notificationLogs, 'notification_logs'),
   notifications: model('notifications', notifications, 'notifications'),
   profiles: model('profiles', profiles, 'profiles'),
   role_plant_access: model('role_plant_access', rolePlantAccess, 'role_plant_access'),

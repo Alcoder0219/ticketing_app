@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from "react";
+﻿import { useState, useMemo, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -51,6 +52,7 @@ function daysBetween(from: Date, to: Date) {
 }
 
 export default function PCReview() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { allowedUnitNames } = useAuth();
 
@@ -209,7 +211,7 @@ export default function PCReview() {
     try {
       await supabase.from("notifications").insert({
         user_id: ticket.raised_by,
-        title: "Feedback Reminder",
+        title: t("pcReview.feedbackReminder"),
         message: `Please share feedback for ticket ${ticket.ticket_number}`,
         type: "info",
         ticket_id: ticket.id,
@@ -222,11 +224,11 @@ export default function PCReview() {
   };
 
   return (
-    <AppLayout title="PC Review">
+    <AppLayout title={t("pcReview.title")}>
       <div className="space-y-6 max-w-[1600px] mx-auto">
         {/* Section 1: Header */}
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">PC Review</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{t("pcReview.title")}</h1>
           <p className="text-muted-foreground mt-1">
             Monitor overdue and pending feedback tickets across all plants.
           </p>
@@ -235,15 +237,15 @@ export default function PCReview() {
         {/* Section 2: Stat cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground font-medium">Total Overdue</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground font-medium">{t("pcReview.totalOverdue")}</CardTitle></CardHeader>
             <CardContent><div className="text-3xl font-bold">{overdueLoading ? <Skeleton className="h-9 w-16" /> : overdueCount}</div></CardContent>
           </Card>
           <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground font-medium">Pending Feedback</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground font-medium">{t("pcReview.pendingFeedback")}</CardTitle></CardHeader>
             <CardContent><div className="text-3xl font-bold">{pendingLoading ? <Skeleton className="h-9 w-16" /> : pendingCount}</div></CardContent>
           </Card>
           <Card className="border-destructive/60">
-            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground font-medium">Critical Overdue</CardTitle></CardHeader>
+            <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground font-medium">{t("pcReview.criticalOverdue")}</CardTitle></CardHeader>
             <CardContent><div className="text-3xl font-bold text-destructive">{overdueLoading ? <Skeleton className="h-9 w-16" /> : criticalCount}</div></CardContent>
           </Card>
         </div>
@@ -252,17 +254,17 @@ export default function PCReview() {
         <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border rounded-lg p-3">
           <div className="flex flex-col md:flex-row md:items-center gap-3 flex-wrap">
             <Select value={plant} onValueChange={setPlant}>
-              <SelectTrigger className="w-full md:w-[160px]"><SelectValue placeholder="Plant" /></SelectTrigger>
+              <SelectTrigger className="w-full md:w-[160px]"><SelectValue placeholder={t("common.plant")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Plants</SelectItem>
+                <SelectItem value="all">{t("common.allPlants")}</SelectItem>
                 {(units || []).map((u: any) => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
               </SelectContent>
             </Select>
 
             <Select value={department} onValueChange={setDepartment}>
-              <SelectTrigger className="w-full md:w-[180px]"><SelectValue placeholder="Department" /></SelectTrigger>
+              <SelectTrigger className="w-full md:w-[180px]"><SelectValue placeholder={t("common.department")} /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
+                <SelectItem value="all">{t("common.allDepartments")}</SelectItem>
                 {(departments || []).map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
               </SelectContent>
             </Select>
@@ -300,7 +302,7 @@ export default function PCReview() {
             <div className="md:ml-auto relative w-full md:w-[280px]">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by Ticket ID or keyword..."
+                placeholder={t("pcReview.searchByIdOrKeyword")}
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 className="pl-8"
@@ -323,7 +325,7 @@ export default function PCReview() {
               <CardContent className="p-0">
                 {filtersActive && (
                   <div className="px-4 py-2 text-xs text-muted-foreground border-b">
-                    <Badge variant="outline" className="mr-2">Filtered</Badge>
+                    <Badge variant="outline" className="mr-2">{t("pcReview.filtered")}</Badge>
                     {overdueCount} matching record{overdueCount === 1 ? "" : "s"}
                   </div>
                 )}
@@ -334,21 +336,21 @@ export default function PCReview() {
                 ) : overdueCount === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 text-center">
                     <CheckCircle2 className="h-12 w-12 text-green-600 mb-3" />
-                    <p className="text-base font-medium">No overdue tickets. Everything is on track!</p>
+                    <p className="text-base font-medium">{t("pcReview.noOverdue")}</p>
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Ticket ID</TableHead>
-                          <TableHead>Issue / Title</TableHead>
-                          <TableHead>Department</TableHead>
-                          <TableHead>Assigned Technician</TableHead>
-                          <TableHead>Target Date</TableHead>
-                          <TableHead>Days Overdue</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Plant</TableHead>
+                          <TableHead>{t("ticket.ticketId")}</TableHead>
+                          <TableHead>{t("pcReview.issueTitle")}</TableHead>
+                          <TableHead>{t("common.department")}</TableHead>
+                          <TableHead>{t("pcReview.assignedTechnician")}</TableHead>
+                          <TableHead>{t("ticket.targetDate")}</TableHead>
+                          <TableHead>{t("pcReview.daysOverdue")}</TableHead>
+                          <TableHead>{t("common.status")}</TableHead>
+                          <TableHead>{t("common.plant")}</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -373,12 +375,12 @@ export default function PCReview() {
                                 </div>
                               </TableCell>
                               <TableCell className="max-w-[260px] truncate">{t.title}</TableCell>
-                              <TableCell>{t.issue_dept?.name || "—"}</TableCell>
+                              <TableCell>{t.issue_dept?.name || "â€”"}</TableCell>
                               <TableCell>{t.assignee?.name || "Unassigned"}</TableCell>
-                              <TableCell>{t.target_date ? formatDate(t.target_date) : "—"}</TableCell>
+                              <TableCell>{t.target_date ? formatDate(t.target_date) : "â€”"}</TableCell>
                               <TableCell>{days}</TableCell>
                               <TableCell><Badge variant="outline" className="capitalize">{String(t.status).replace("_", " ")}</Badge></TableCell>
-                              <TableCell>{t.unit?.name || "—"}</TableCell>
+                              <TableCell>{t.unit?.name || "â€”"}</TableCell>
                             </TableRow>
                           );
                         })}
@@ -389,11 +391,11 @@ export default function PCReview() {
                 {overdueCount > 0 && (
                   <div className="flex items-center justify-between p-4 border-t">
                     <div className="text-xs text-muted-foreground">
-                      Showing {(overduePage - 1) * PAGE_SIZE + 1}–{Math.min(overduePage * PAGE_SIZE, overdueCount)} of {overdueCount} tickets
+                      Showing {(overduePage - 1) * PAGE_SIZE + 1}â€“{Math.min(overduePage * PAGE_SIZE, overdueCount)} of {overdueCount} tickets
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" disabled={overduePage === 1} onClick={() => setOverduePage(p => p - 1)}>Previous</Button>
-                      <Button variant="outline" size="sm" disabled={overduePage >= overduePages} onClick={() => setOverduePage(p => p + 1)}>Next</Button>
+                      <Button variant="outline" size="sm" disabled={overduePage === 1} onClick={() => setOverduePage(p => p - 1)}>{t("pcReview.previous")}</Button>
+                      <Button variant="outline" size="sm" disabled={overduePage >= overduePages} onClick={() => setOverduePage(p => p + 1)}>{t("pcReview.next")}</Button>
                     </div>
                   </div>
                 )}
@@ -407,7 +409,7 @@ export default function PCReview() {
               <CardContent className="p-0">
                 {filtersActive && (
                   <div className="px-4 py-2 text-xs text-muted-foreground border-b">
-                    <Badge variant="outline" className="mr-2">Filtered</Badge>
+                    <Badge variant="outline" className="mr-2">{t("pcReview.filtered")}</Badge>
                     {pendingCount} matching record{pendingCount === 1 ? "" : "s"}
                   </div>
                 )}
@@ -425,15 +427,15 @@ export default function PCReview() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Ticket ID</TableHead>
-                          <TableHead>Issue / Title</TableHead>
+                          <TableHead>{t("ticket.ticketId")}</TableHead>
+                          <TableHead>{t("pcReview.issueTitle")}</TableHead>
                           <TableHead>Raised By</TableHead>
                           <TableHead>Closed Date</TableHead>
-                          <TableHead>Assigned Technician</TableHead>
+                          <TableHead>{t("pcReview.assignedTechnician")}</TableHead>
                           <TableHead>Resolved By</TableHead>
                           <TableHead>Feedback Status</TableHead>
                           <TableHead>Resolution Proof</TableHead>
-                          <TableHead>Plant</TableHead>
+                          <TableHead>{t("common.plant")}</TableHead>
                           <TableHead>Actions</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -444,10 +446,10 @@ export default function PCReview() {
                             <TableRow key={t.id} className="hover:bg-muted/50">
                               <TableCell className="font-mono text-xs"><TicketIdLink ticketNumber={t.ticket_number} /></TableCell>
                               <TableCell className="max-w-[260px] truncate">{t.title}</TableCell>
-                              <TableCell>{t.raiser?.name || "—"}</TableCell>
-                              <TableCell>{t.closed_at ? formatDate(t.closed_at) : "—"}</TableCell>
-                              <TableCell>{t.assignee?.name || "—"}</TableCell>
-                              <TableCell>{t.closer?.name || t.assignee?.name || "—"}</TableCell>
+                              <TableCell>{t.raiser?.name || "â€”"}</TableCell>
+                              <TableCell>{t.closed_at ? formatDate(t.closed_at) : "â€”"}</TableCell>
+                              <TableCell>{t.assignee?.name || "â€”"}</TableCell>
+                              <TableCell>{t.closer?.name || t.assignee?.name || "â€”"}</TableCell>
                               <TableCell>
                                 <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-300">Pending</Badge>
                               </TableCell>
@@ -458,15 +460,15 @@ export default function PCReview() {
                                     onClick={() => setProofPhotos(t.resolution_photos as string[])}
                                     className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
                                   >
-                                    <Eye className="h-3 w-3" /> ✅ Photos Available
+                                    <Eye className="h-3 w-3" /> âœ… Photos Available
                                   </button>
                                 ) : (
                                   <span className="inline-flex items-center rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
-                                    ❌ No Photos
+                                    âŒ No Photos
                                   </span>
                                 )}
                               </TableCell>
-                              <TableCell>{t.unit?.name || "—"}</TableCell>
+                              <TableCell>{t.unit?.name || "â€”"}</TableCell>
                               <TableCell>
                                 {sent ? (
                                   <Button size="sm" variant="outline" disabled>Reminder Sent</Button>
@@ -498,11 +500,11 @@ export default function PCReview() {
                 {pendingCount > 0 && (
                   <div className="flex items-center justify-between p-4 border-t">
                     <div className="text-xs text-muted-foreground">
-                      Showing {(pendingPage - 1) * PAGE_SIZE + 1}–{Math.min(pendingPage * PAGE_SIZE, pendingCount)} of {pendingCount} tickets
+                      Showing {(pendingPage - 1) * PAGE_SIZE + 1}â€“{Math.min(pendingPage * PAGE_SIZE, pendingCount)} of {pendingCount} tickets
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" disabled={pendingPage === 1} onClick={() => setPendingPage(p => p - 1)}>Previous</Button>
-                      <Button variant="outline" size="sm" disabled={pendingPage >= pendingPages} onClick={() => setPendingPage(p => p + 1)}>Next</Button>
+                      <Button variant="outline" size="sm" disabled={pendingPage === 1} onClick={() => setPendingPage(p => p - 1)}>{t("pcReview.previous")}</Button>
+                      <Button variant="outline" size="sm" disabled={pendingPage >= pendingPages} onClick={() => setPendingPage(p => p + 1)}>{t("pcReview.next")}</Button>
                     </div>
                   </div>
                 )}
@@ -516,7 +518,7 @@ export default function PCReview() {
               <CardContent className="p-0">
                 {filtersActive && (
                   <div className="px-4 py-2 text-xs text-muted-foreground border-b">
-                    <Badge variant="outline" className="mr-2">Filtered</Badge>
+                    <Badge variant="outline" className="mr-2">{t("pcReview.filtered")}</Badge>
                     {unassignedCount} matching record{unassignedCount === 1 ? "" : "s"}
                   </div>
                 )}
@@ -534,14 +536,14 @@ export default function PCReview() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead>Ticket ID</TableHead>
-                          <TableHead>Issue / Title</TableHead>
-                          <TableHead>Department</TableHead>
-                          <TableHead>Plant</TableHead>
+                          <TableHead>{t("ticket.ticketId")}</TableHead>
+                          <TableHead>{t("pcReview.issueTitle")}</TableHead>
+                          <TableHead>{t("common.department")}</TableHead>
+                          <TableHead>{t("common.plant")}</TableHead>
                           <TableHead>Raised By</TableHead>
-                          <TableHead>Assigned Technician</TableHead>
-                          <TableHead>Target Date</TableHead>
-                          <TableHead>Status</TableHead>
+                          <TableHead>{t("pcReview.assignedTechnician")}</TableHead>
+                          <TableHead>{t("ticket.targetDate")}</TableHead>
+                          <TableHead>{t("common.status")}</TableHead>
                           <TableHead>Missing Info</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -563,9 +565,9 @@ export default function PCReview() {
                                 </div>
                               </TableCell>
                               <TableCell className="max-w-[260px] truncate">{t.title}</TableCell>
-                              <TableCell>{t.issue_dept?.name || "—"}</TableCell>
-                              <TableCell>{t.unit?.name || "—"}</TableCell>
-                              <TableCell>{t.raiser?.name || "—"}</TableCell>
+                              <TableCell>{t.issue_dept?.name || "â€”"}</TableCell>
+                              <TableCell>{t.unit?.name || "â€”"}</TableCell>
+                              <TableCell>{t.raiser?.name || "â€”"}</TableCell>
                               <TableCell className={noAssignee ? "text-destructive font-medium" : ""}>
                                 {noAssignee ? "Not Assigned" : t.assignee?.name}
                               </TableCell>
@@ -593,11 +595,11 @@ export default function PCReview() {
                 {unassignedCount > 0 && (
                   <div className="flex items-center justify-between p-4 border-t">
                     <div className="text-xs text-muted-foreground">
-                      Showing {(unassignedPage - 1) * PAGE_SIZE + 1}–{Math.min(unassignedPage * PAGE_SIZE, unassignedCount)} of {unassignedCount} tickets
+                      Showing {(unassignedPage - 1) * PAGE_SIZE + 1}â€“{Math.min(unassignedPage * PAGE_SIZE, unassignedCount)} of {unassignedCount} tickets
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" disabled={unassignedPage === 1} onClick={() => setUnassignedPage(p => p - 1)}>Previous</Button>
-                      <Button variant="outline" size="sm" disabled={unassignedPage >= unassignedPages} onClick={() => setUnassignedPage(p => p + 1)}>Next</Button>
+                      <Button variant="outline" size="sm" disabled={unassignedPage === 1} onClick={() => setUnassignedPage(p => p - 1)}>{t("pcReview.previous")}</Button>
+                      <Button variant="outline" size="sm" disabled={unassignedPage >= unassignedPages} onClick={() => setUnassignedPage(p => p + 1)}>{t("pcReview.next")}</Button>
                     </div>
                   </div>
                 )}

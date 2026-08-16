@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -36,6 +37,7 @@ function EmptyChart({ label }: { label: string }) {
 }
 
 export default function Analytics() {
+  const { t } = useTranslation();
   const { user, role, profile, allowedUnitNames } = useAuth();
   const [unitFilter, setUnitFilter] = useState<string>("all");
 
@@ -175,7 +177,7 @@ export default function Analytics() {
   const bottomUnits = [...unitData].reverse().slice(0, 5);
 
   return (
-    <AppLayout title="Detailed Analytics">
+    <AppLayout title={t("analytics.title")}>
       <div className="space-y-6">
         <Card className="border shadow-sm">
           <CardContent className="p-4 flex justify-end">
@@ -184,7 +186,7 @@ export default function Analytics() {
               <Select value={unitFilter} onValueChange={setUnitFilter}>
                 <SelectTrigger className="w-[200px] h-9"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Units</SelectItem>
+                  <SelectItem value="all">{t("common.allUnits")}</SelectItem>
                   {units?.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
                 </SelectContent>
               </Select>
@@ -194,7 +196,7 @@ export default function Analytics() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="border shadow-sm">
-            <CardHeader><CardTitle className="text-sm font-semibold">Ticket Volume by Department</CardTitle></CardHeader>
+            <CardHeader><CardTitle className="text-sm font-semibold">{t("analyticsPage.ticketVolumeByDept")}</CardTitle></CardHeader>
             <CardContent>
               {isLoading ? <ChartSkeleton /> : deptTrendData.data.length === 0 ? <EmptyChart label="No data" /> : (
                 <ResponsiveContainer width="100%" height={280}>
@@ -233,16 +235,16 @@ export default function Analytics() {
         </div>
 
         <Card className="border shadow-sm">
-          <CardHeader><CardTitle className="text-sm font-semibold">Technician Performance</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm font-semibold">{t("analyticsPage.technicianPerformance")}</CardTitle></CardHeader>
           <CardContent>
             {isLoading ? <ChartSkeleton /> : technicianData.length === 0 ? <EmptyChart label="No assigned tickets" /> : (
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Technician</TableHead>
-                    <TableHead className="text-right">Tickets Closed</TableHead>
+                    <TableHead>{t("analyticsPage.technician")}</TableHead>
+                    <TableHead className="text-right">{t("analyticsPage.ticketsClosed")}</TableHead>
                     <TableHead className="text-right">Avg Aging (days)</TableHead>
-                    <TableHead className="text-right">Avg Score</TableHead>
+                    <TableHead className="text-right">{t("analyticsPage.avgScore")}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -250,13 +252,13 @@ export default function Analytics() {
                     <TableRow key={t.name}>
                       <TableCell className="font-medium">{t.name}</TableCell>
                       <TableCell className="text-right">{t.closed}</TableCell>
-                      <TableCell className="text-right">{t.avgAging || "—"}</TableCell>
+                      <TableCell className="text-right">{t.avgAging || "â€”"}</TableCell>
                       <TableCell className="text-right">
                         {t.avgScore > 0 ? (
                           <Badge variant={t.avgScore >= 4 ? "default" : t.avgScore >= 3 ? "secondary" : "destructive"}>
-                            {t.avgScore} ★
+                            {t.avgScore} â˜…
                           </Badge>
-                        ) : "—"}
+                        ) : "â€”"}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -280,7 +282,7 @@ export default function Analytics() {
                     <div key={u.name} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                       <div>
                         <p className="text-sm font-medium">{u.name}</p>
-                        <p className="text-xs text-muted-foreground">{u.total} tickets • avg {u.avgAging}d</p>
+                        <p className="text-xs text-muted-foreground">{u.total} tickets â€¢ avg {u.avgAging}d</p>
                       </div>
                       <Badge className="bg-green-600">{u.resolutionRate}%</Badge>
                     </div>
@@ -303,7 +305,7 @@ export default function Analytics() {
                     <div key={u.name} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                       <div>
                         <p className="text-sm font-medium">{u.name}</p>
-                        <p className="text-xs text-muted-foreground">{u.total} tickets • avg {u.avgAging}d</p>
+                        <p className="text-xs text-muted-foreground">{u.total} tickets â€¢ avg {u.avgAging}d</p>
                       </div>
                       <Badge variant="destructive">{u.resolutionRate}%</Badge>
                     </div>

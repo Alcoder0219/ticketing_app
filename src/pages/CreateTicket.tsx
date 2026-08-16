@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/select";
 import { Send } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +19,7 @@ import { AttachmentDropzone, AttachmentItem } from "@/components/AttachmentDropz
 import { VoiceDescriptionInput } from "@/components/VoiceDescriptionInput";
 
 export default function CreateTicket() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
@@ -58,7 +60,7 @@ export default function CreateTicket() {
     e.preventDefault();
     if (!user) return;
     if (!issueDeptId) {
-      toast({ title: "Issue Department required", description: "Please select an issue department.", variant: "destructive" });
+      toast({ title: t("createTicket.deptRequired"), description: t("createTicket.deptRequiredDesc"), variant: "destructive" });
       return;
     }
     setIsSubmitting(true);
@@ -81,7 +83,7 @@ export default function CreateTicket() {
 
     if (insertError || !created) {
       setIsSubmitting(false);
-      toast({ title: "Error", description: insertError?.message || "Failed to create ticket", variant: "destructive" });
+      toast({ title: t("messages.error"), description: insertError?.message || t("createTicket.createFailed"), variant: "destructive" });
       return;
     }
 
@@ -148,33 +150,33 @@ export default function CreateTicket() {
     }
 
     setIsSubmitting(false);
-    toast({ title: "Ticket Created", description: "Your ticket has been submitted successfully." });
+    toast({ title: t("createTicket.createdTitle"), description: t("createTicket.createdDesc") });
     navigate("/my-tickets");
   };
 
   return (
-    <AppLayout title="Create Ticket">
+    <AppLayout title={t("nav.createTicket")}>
       <div className="max-w-3xl mx-auto">
         <Card className="border shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg">New Support Ticket</CardTitle>
-            <p className="text-sm text-muted-foreground">Fill in the details below to raise a new ticket.</p>
+            <CardTitle className="text-lg">{t("createTicket.newSupportTicket")}</CardTitle>
+            <p className="text-sm text-muted-foreground">{t("createTicket.fillDetails")}</p>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="rounded-lg bg-muted/50 p-4 space-y-1">
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Raised By</p>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{t("createTicket.raisedBy")}</p>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
                   <div>
-                    <p className="text-xs text-muted-foreground">Name</p>
+                    <p className="text-xs text-muted-foreground">{t("common.name")}</p>
                     <p className="text-sm font-medium">{profile?.name || "—"}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Employee ID</p>
+                    <p className="text-xs text-muted-foreground">{t("common.employeeId")}</p>
                     <p className="text-sm font-medium">{profile?.employee_id || "—"}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-muted-foreground">Contact</p>
+                    <p className="text-xs text-muted-foreground">{t("common.contact")}</p>
                     <p className="text-sm font-medium">{profile?.contact || "—"}</p>
                   </div>
                 </div>
@@ -182,9 +184,9 @@ export default function CreateTicket() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <Label>Unit</Label>
+                  <Label>{t("common.unit")}</Label>
                   <Select value={unitId} onValueChange={setUnitId}>
-                    <SelectTrigger><SelectValue placeholder="Select Unit" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={t("createTicket.selectUnit")} /></SelectTrigger>
                     <SelectContent>
                       {units?.map((u) => (
                         <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
@@ -193,9 +195,9 @@ export default function CreateTicket() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Issue Department *</Label>
+                  <Label>{t("createTicket.issueDepartment")} *</Label>
                   <Select value={issueDeptId} onValueChange={setIssueDeptId} required>
-                    <SelectTrigger><SelectValue placeholder="Select Department" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={t("createTicket.selectDepartmentPlaceholder")} /></SelectTrigger>
                     <SelectContent>
                       {departments?.map((d) => (
                         <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
@@ -204,22 +206,22 @@ export default function CreateTicket() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Priority</Label>
+                  <Label>{t("common.priority")}</Label>
                   <Select value={priority} onValueChange={setPriority}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="low">🟢 Low</SelectItem>
-                      <SelectItem value="medium">🟡 Medium</SelectItem>
-                      <SelectItem value="high">🟠 High</SelectItem>
-                      <SelectItem value="critical">🔴 Critical</SelectItem>
+                      <SelectItem value="low">🟢 {t("priority.low")}</SelectItem>
+                      <SelectItem value="medium">🟡 {t("priority.medium")}</SelectItem>
+                      <SelectItem value="high">🟠 {t("priority.high")}</SelectItem>
+                      <SelectItem value="critical">🔴 {t("priority.critical")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label>Ticket Title *</Label>
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Brief summary of the issue" required />
+                <Label>{t("createTicket.ticketTitle")} *</Label>
+                <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("createTicket.titlePlaceholder")} required />
               </div>
               <VoiceDescriptionInput
                 value={description}
@@ -230,7 +232,7 @@ export default function CreateTicket() {
               />
 
               <div className="space-y-2">
-                <Label>Attachments (Optional)</Label>
+                <Label>{t("createTicket.attachmentsOptional")}</Label>
                 <AttachmentDropzone
                   items={attachments}
                   onChange={setAttachments}
@@ -239,10 +241,10 @@ export default function CreateTicket() {
               </div>
 
               <div className="flex justify-end gap-3 pt-2">
-                <Button type="button" variant="outline" onClick={() => navigate(-1)}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={() => navigate(-1)}>{t("common.cancel")}</Button>
                 <Button type="submit" disabled={isSubmitting}>
                   <Send className="h-4 w-4 mr-2" />
-                  {isSubmitting ? "Submitting..." : "Submit Ticket"}
+                  {isSubmitting ? t("createTicket.submitting") : t("createTicket.submitTicket")}
                 </Button>
               </div>
             </form>

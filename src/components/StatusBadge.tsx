@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { TicketStatus, statusColor } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
@@ -7,6 +8,8 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ status, className }: StatusBadgeProps) {
+  // Display only — the stored ticket status value is never changed.
+  const { t } = useTranslation();
   return (
     <span
       className={cn(
@@ -15,7 +18,7 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
         className
       )}
     >
-      {status}
+      {t(`status.${status}`, { defaultValue: status })}
     </span>
   );
 }

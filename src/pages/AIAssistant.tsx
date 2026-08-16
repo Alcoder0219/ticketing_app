@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -52,7 +53,7 @@ interface Message {
   chipKind?: "view-tickets";
   chipsDisabled?: boolean;
   confirmCard?: ConfirmCardData;
-  /** Detected/selected language of this message — drives RTL rendering. */
+  /** Detected/selected language of this message â€” drives RTL rendering. */
   lang?: string;
 }
 
@@ -64,17 +65,17 @@ interface TicketContext {
 const ASSISTANT_NAME = "Ticketing Assistant";
 
 const PRIORITY_OPTIONS: { value: ExtractedPriority; label: string }[] = [
-  { value: "critical", label: "🔴 Critical" },
-  { value: "high", label: "🟠 High" },
-  { value: "medium", label: "🟡 Medium" },
-  { value: "low", label: "🟢 Low" },
+  { value: "critical", label: "ðŸ”´ Critical" },
+  { value: "high", label: "ðŸŸ  High" },
+  { value: "medium", label: "ðŸŸ¡ Medium" },
+  { value: "low", label: "ðŸŸ¢ Low" },
 ];
 
 const QUICK_PROMPTS = [
-  "📊 How many tickets are pending?",
-  "⏰ Explain SLA policies",
-  "🎫 Help me write a ticket description",
-  "📈 What are common ticket issues?",
+  "ðŸ“Š How many tickets are pending?",
+  "â° Explain SLA policies",
+  "ðŸŽ« Help me write a ticket description",
+  "ðŸ“ˆ What are common ticket issues?",
 ];
 
 function welcomeMessage(firstName: string, lang: LangCode = "en"): Message {
@@ -95,8 +96,8 @@ function cardIntro(lang: string, hasDept: boolean): string {
   }
   if (lang === "ar") {
     return hasDept
-      ? "هذا ما فهمته من رسالتك. راجع البيانات وأكِّد للإرسال:"
-      : "لم أتمكن من تحديد القسم. الرجاء اختيار القسم ثم التأكيد للإرسال:";
+      ? "Ù‡Ø°Ø§ Ù…Ø§ ÙÙ‡Ù…ØªÙ‡ Ù…Ù† Ø±Ø³Ø§Ù„ØªÙƒ. Ø±Ø§Ø¬Ø¹ Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª ÙˆØ£ÙƒÙÙ‘Ø¯ Ù„Ù„Ø¥Ø±Ø³Ø§Ù„:"
+      : "Ù„Ù… Ø£ØªÙ…ÙƒÙ† Ù…Ù† ØªØ­Ø¯ÙŠØ¯ Ø§Ù„Ù‚Ø³Ù…. Ø§Ù„Ø±Ø¬Ø§Ø¡ Ø§Ø®ØªÙŠØ§Ø± Ø§Ù„Ù‚Ø³Ù… Ø«Ù… Ø§Ù„ØªØ£ÙƒÙŠØ¯ Ù„Ù„Ø¥Ø±Ø³Ø§Ù„:";
   }
   return hasDept
     ? "Here's what I picked up from your message. Review and confirm to submit:"
@@ -104,6 +105,7 @@ function cardIntro(lang: string, hasDept: boolean): string {
 }
 
 export default function AIAssistant() {
+  const { t } = useTranslation();
   const { conversationId } = useParams<{ conversationId?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
@@ -190,7 +192,7 @@ export default function AIAssistant() {
         rec.start();
         setIsListening(true);
         const opt = langOption(langRef.current);
-        toast.info(`Listening (${opt.flag} ${opt.label})… speak your ticket or question`);
+        toast.info(`Listening (${opt.flag} ${opt.label})â€¦ speak your ticket or question`);
       } catch {
         setIsListening(false);
       }
@@ -347,7 +349,7 @@ export default function AIAssistant() {
 
     if (error || !data) {
       resolveCard(cardMsgId);
-      pushAssistant({ content: "❌ Could not create ticket. Please try again or use the Create Ticket page." });
+      pushAssistant({ content: "âŒ Could not create ticket. Please try again or use the Create Ticket page." });
       return;
     }
     const ticketId = (data as any).id as string;
@@ -393,26 +395,26 @@ export default function AIAssistant() {
     resolveCard(cardMsgId);
 
     let content =
-`✅ **Your ticket has been raised successfully!**
+`âœ… **Your ticket has been raised successfully!**
 
-🎫 **Ticket ID:** ${tn}
-📋 ${card.title}
-🏢 ${card.departmentName} | ⚡ ${card.priority.charAt(0).toUpperCase() + card.priority.slice(1)}
-📅 Created: ${formatDate(created, true)}`;
+ðŸŽ« **Ticket ID:** ${tn}
+ðŸ“‹ ${card.title}
+ðŸ¢ ${card.departmentName} | âš¡ ${card.priority.charAt(0).toUpperCase() + card.priority.slice(1)}
+ðŸ“… Created: ${formatDate(created, true)}`;
 
     if (files.length > 0) {
-      content += `\n📎 ${successCount} attachment(s) uploaded`;
+      content += `\nðŸ“Ž ${successCount} attachment(s) uploaded`;
     }
     if (failedFiles.length > 0) {
       content += failedFiles
-        .map((n) => `\n⚠️ Ticket created but ${n} could not be uploaded. You can add it from the ticket detail page.`)
+        .map((n) => `\nâš ï¸ Ticket created but ${n} could not be uploaded. You can add it from the ticket detail page.`)
         .join("");
     }
     content += `\n\nYour ticket is now **Pending** and will be assigned to a technician shortly.`;
 
     pushAssistant({
       content,
-      chips: [{ label: "📋 View in My Tickets", value: "view" }],
+      chips: [{ label: "ðŸ“‹ View in My Tickets", value: "view" }],
       chipKind: "view-tickets",
     });
   };
@@ -450,8 +452,8 @@ export default function AIAssistant() {
     }
     const detectedLang = (cls?.language as string) || userLangHint;
 
-    // 2) Ticket intent → show an editable confirmation card (kept ephemeral,
-    //    matching the previous single-prompt flow — not persisted to a conversation).
+    // 2) Ticket intent â†’ show an editable confirmation card (kept ephemeral,
+    //    matching the previous single-prompt flow â€” not persisted to a conversation).
     if (cls?.intent === "ticket") {
       setStreaming(false);
       pushUser(content, userLangHint);
@@ -464,8 +466,8 @@ export default function AIAssistant() {
           departmentId: cls.departmentId ?? null,
           departmentName: cls.departmentName ?? null,
           priority: (cls.priority as ExtractedPriority) || "medium",
-          raisedByName: profile?.name || "—",
-          unitName: unitName || "—",
+          raisedByName: profile?.name || "â€”",
+          unitName: unitName || "â€”",
           originalLanguage: detectedLang,
           originalMessage: cls.originalMessage || content,
           translatedMessage: cls.translatedMessage || content,
@@ -573,7 +575,7 @@ export default function AIAssistant() {
   const showQuickPrompts = !conversationId && messages.length === 1 && !messages[0].id && !streaming;
 
   return (
-    <AppLayout title="AI Assistant">
+    <AppLayout title={t("nav.aiAssistant")}>
       <div className="flex gap-6 h-[calc(100vh-8rem)]">
         {/* LEFT: Conversation list */}
         <aside className="w-[30%] min-w-[280px] flex flex-col rounded-xl border border-border/70 bg-card shadow-sm overflow-hidden">
@@ -676,7 +678,7 @@ export default function AIAssistant() {
                     <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-blue-500 text-primary-foreground shadow-lg shadow-primary/30">
                       <Bot className="h-8 w-8" />
                     </div>
-                    <p className="mt-4 text-sm font-medium text-muted-foreground">Hi {firstName} 👋</p>
+                    <p className="mt-4 text-sm font-medium text-muted-foreground">Hi {firstName} ðŸ‘‹</p>
                     <h2 className="mt-1 text-2xl font-bold tracking-tight text-foreground">AI Ticketing Assistant</h2>
                     <p className="mt-2 max-w-md text-[15px] leading-relaxed text-muted-foreground">
                       I can help you manage tickets, explain policies, generate reports, answer HR queries and assist with support workflows.
@@ -735,14 +737,14 @@ export default function AIAssistant() {
                   <SelectContent>
                     {LANGUAGES.map((l) => (
                       <SelectItem key={l.code} value={l.code} className="text-xs">
-                        <span className="mr-1.5">{l.flag}</span>{l.label} · {l.native}
+                        <span className="mr-1.5">{l.flag}</span>{l.label} Â· {l.native}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <span className="text-[10px] text-muted-foreground/70 hidden sm:inline">
-                Auto-detects 🇺🇸 English · 🇹🇿 Swahili · 🇸🇦 Arabic
+                Auto-detects ðŸ‡ºðŸ‡¸ English Â· ðŸ‡¹ðŸ‡¿ Swahili Â· ðŸ‡¸ðŸ‡¦ Arabic
               </span>
             </div>
             <div className="flex items-end gap-1.5 rounded-2xl border border-border/70 bg-background px-2 py-1.5 shadow-sm transition-all duration-200 focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10">
@@ -759,10 +761,10 @@ export default function AIAssistant() {
                 }}
                 placeholder={
                   isListening
-                    ? "🎙️ Listening… speak now"
+                    ? "ðŸŽ™ï¸ Listeningâ€¦ speak now"
                     : streaming
                       ? "AI is thinking..."
-                      : "Ask me anything, or click 🎙️ to raise a ticket by voice..."
+                      : "Ask me anything, or click ðŸŽ™ï¸ to raise a ticket by voice..."
                 }
                 disabled={streaming}
                 rows={1}
@@ -803,7 +805,7 @@ export default function AIAssistant() {
               <span className="hidden sm:flex items-center gap-1.5">
                 <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-sans text-[10px] font-medium">Enter</kbd>
                 to send
-                <span className="text-muted-foreground/50">·</span>
+                <span className="text-muted-foreground/50">Â·</span>
                 <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-sans text-[10px] font-medium">Shift + Enter</kbd>
                 new line
               </span>
@@ -972,11 +974,11 @@ function ConfirmCard({
     const next = [...files];
     for (const f of incoming) {
       if (!ACCEPTED_TYPES.includes(f.type)) {
-        setFileError(`${f.name} — unsupported file type`);
+        setFileError(`${f.name} â€” unsupported file type`);
         continue;
       }
       if (f.size > MAX_SIZE) {
-        setFileError("File too large — max 5MB");
+        setFileError("File too large â€” max 5MB");
         continue;
       }
       if (next.length >= MAX_FILES) {
@@ -1018,7 +1020,7 @@ function ConfirmCard({
       <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/60">
         <TicketIcon className="h-4 w-4 text-primary" />
         <span className="font-semibold text-sm">
-          {readOnly ? "Ticket — Submitted" : "New Ticket — Ready to Submit"}
+          {readOnly ? "Ticket â€” Submitted" : "New Ticket â€” Ready to Submit"}
         </span>
       </div>
       <div className="p-3 space-y-3">
@@ -1100,7 +1102,7 @@ function ConfirmCard({
 
         {!readOnly && (
           <div className="pt-1">
-            <p className="text-xs font-medium">📎 Attachments (Optional)</p>
+            <p className="text-xs font-medium">ðŸ“Ž Attachments (Optional)</p>
             <p className="text-[11px] text-muted-foreground mt-0.5">
               Add screenshots or files to help describe the issue.
             </p>
@@ -1125,7 +1127,7 @@ function ConfirmCard({
               <Paperclip className="h-5 w-5 text-muted-foreground" />
               <span className="text-xs font-medium">Click to upload or drag and drop</span>
               <span className="text-[10px] text-muted-foreground">
-                JPG, PNG, WEBP, PDF · Max 5 files · 5MB each
+                JPG, PNG, WEBP, PDF Â· Max 5 files Â· 5MB each
               </span>
             </button>
             <input
@@ -1186,13 +1188,13 @@ function ConfirmCard({
       {!readOnly && (
         <div className="flex items-center justify-end gap-2 px-3 py-2 border-t bg-muted/40">
           <Button variant="outline" size="sm" onClick={onCancel} disabled={submitting}>
-            ❌ Cancel
+            âŒ Cancel
           </Button>
           <Button size="sm" onClick={handleSubmit} disabled={!canSubmit}>
             {submitting ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : null}
             {submitting && progress && progress.total > 0
               ? `Uploading... ${progress.current}/${progress.total} files`
-              : "✅ Confirm & Submit"}
+              : "âœ… Confirm & Submit"}
           </Button>
         </div>
       )}

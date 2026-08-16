@@ -1,4 +1,5 @@
-import { useState } from "react";
+﻿import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -86,6 +87,7 @@ const emptyForm: UserForm = {
 };
 
 export default function ManageUsers() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const { allowedUnitIds } = useAuth();
   const queryClient = useQueryClient();
@@ -175,8 +177,8 @@ export default function ManageUsers() {
       const { error } = await supabase.from("user_roles").update({ role: newRole }).eq("user_id", userId);
       if (error) throw error;
     },
-    onSuccess: () => { invalidateAll(); toast({ title: "Role Updated" }); },
-    onError: (err: Error) => { toast({ title: "Error", description: err.message, variant: "destructive" }); },
+    onSuccess: () => { invalidateAll(); toast({ title: t("manageUsers.roleUpdated") }); },
+    onError: (err: Error) => { toast({ title: t("messages.error"), description: err.message, variant: "destructive" }); },
   });
 
   const updateDepartment = useMutation({
@@ -184,8 +186,8 @@ export default function ManageUsers() {
       const { error } = await supabase.from("profiles").update({ department_id: departmentId }).eq("user_id", userId);
       if (error) throw error;
     },
-    onSuccess: () => { invalidateAll(); toast({ title: "Department Updated" }); },
-    onError: (err: Error) => { toast({ title: "Error", description: err.message, variant: "destructive" }); },
+    onSuccess: () => { invalidateAll(); toast({ title: t("manageUsers.departmentUpdated") }); },
+    onError: (err: Error) => { toast({ title: t("messages.error"), description: err.message, variant: "destructive" }); },
   });
 
   const getRoleForUser = (userId: string): AppRole => {
@@ -212,11 +214,11 @@ export default function ManageUsers() {
 
   const handleAddUser = async () => {
     if (!form.name || !form.email || !form.password) {
-      toast({ title: "Error", description: "Name, email, and password are required.", variant: "destructive" });
+      toast({ title: t("messages.error"), description: t("manageUsers.requiredFields"), variant: "destructive" });
       return;
     }
     if (!form.unitId) {
-      toast({ title: "Error", description: "Please select a unit", variant: "destructive" });
+      toast({ title: t("messages.error"), description: t("manageUsers.selectUnitError"), variant: "destructive" });
       return;
     }
     setFormLoading(true);
@@ -242,12 +244,12 @@ export default function ManageUsers() {
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Failed to create user");
-      toast({ title: "User Created", description: `${form.name} has been added successfully.` });
+      toast({ title: t("messages.userCreated"), description: t("manageUsers.userCreatedDesc", { name: form.name }) });
       setAddOpen(false);
       setForm(emptyForm);
       invalidateAll();
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: t("messages.error"), description: err.message, variant: "destructive" });
     }
     setFormLoading(false);
   };
@@ -255,12 +257,12 @@ export default function ManageUsers() {
   const handleEditUser = async () => {
     if (!selectedUser) return;
     if (!form.name.trim()) {
-      toast({ title: "Error", description: "Name is required.", variant: "destructive" });
+      toast({ title: t("messages.error"), description: t("manageUsers.nameRequired"), variant: "destructive" });
       return;
     }
     setFormLoading(true);
     try {
-      // Update profile — select() forces the response so RLS rejections surface as errors
+      // Update profile â€” select() forces the response so RLS rejections surface as errors
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .update({
@@ -298,7 +300,7 @@ export default function ManageUsers() {
         }
       }
 
-      // Update cache directly with confirmed DB values — no refetch (would race & revert).
+      // Update cache directly with confirmed DB values â€” no refetch (would race & revert).
       queryClient.setQueryData(["all-profiles"], (old: any[] | undefined) =>
         old?.map((p) => (p.user_id === selectedUser.user_id ? { ...p, ...profileData[0] } : p))
       );
@@ -329,11 +331,11 @@ export default function ManageUsers() {
         if (!res.ok) throw new Error(result.error || "Failed to update credentials");
       }
 
-      toast({ title: "User updated", description: `${form.name}'s details have been saved.` });
+      toast({ title: t("manageUsers.userUpdatedTitle"), description: t("manageUsers.userUpdatedDesc", { name: form.name }) });
       setEditOpen(false);
       setSelectedUser(null);
     } catch (err: any) {
-      toast({ title: "Save failed", description: err?.message || "Unknown error", variant: "destructive" });
+      toast({ title: t("messages.saveFailed"), description: err?.message || t("manageUsers.unknownError"), variant: "destructive" });
     } finally {
       setFormLoading(false);
     }
@@ -368,7 +370,7 @@ export default function ManageUsers() {
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Failed to delete user");
 
-      // DO NOT invalidate here — soft-deleted users still exist in `profiles` and would
+      // DO NOT invalidate here â€” soft-deleted users still exist in `profiles` and would
       // reappear in the list. The optimistic removal above is the source of truth.
       toast({
         title: result.mode === "deactivated" ? "User deactivated" : "User deleted",
@@ -382,7 +384,7 @@ export default function ManageUsers() {
       // Roll back optimistic removal so the row reappears
       queryClient.setQueryData(["all-profiles"], prevProfiles);
       queryClient.setQueryData(["all-user-roles"], prevRoles);
-      toast({ title: "Delete failed", description: err?.message || "Unknown error", variant: "destructive" });
+      toast({ title: t("messages.deleteFailed"), description: err?.message || t("manageUsers.unknownError"), variant: "destructive" });
     } finally {
       setFormLoading(false);
     }
@@ -407,27 +409,27 @@ export default function ManageUsers() {
   const getInitials = (name: string) => name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
 
   const getDeptName = (deptId: string | null) => {
-    if (!deptId) return "—";
-    return departments?.find(d => d.id === deptId)?.name || "—";
+    if (!deptId) return "â€”";
+    return departments?.find(d => d.id === deptId)?.name || "â€”";
   };
 
   const getUnitName = (unitId: string | null) => {
-    if (!unitId) return "—";
-    return units?.find(u => u.id === unitId)?.name || "—";
+    if (!unitId) return "â€”";
+    return units?.find(u => u.id === unitId)?.name || "â€”";
   };
 
   return (
-    <AppLayout title="Manage Users">
+    <AppLayout title={t("manageUsers.title")}>
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
           <div>
-            <h2 className="text-xl font-semibold">User Management</h2>
-            <p className="text-sm text-muted-foreground">Manage roles and department assignments.</p>
+            <h2 className="text-xl font-semibold">{t("manageUsers.userManagement")}</h2>
+            <p className="text-sm text-muted-foreground">{t("manageUsers.manageRolesSubtitle")}</p>
           </div>
           <div className="flex gap-3 w-full sm:w-auto">
             <div className="relative flex-1 sm:w-72">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search users..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <Input placeholder={t("manageUsers.searchUsers")} className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <Button variant="outline" onClick={() => setBulkOpen(true)}>
               <FileUp className="h-4 w-4 mr-2" /> Bulk Import
@@ -455,12 +457,12 @@ export default function ManageUsers() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>User</TableHead>
-                      <TableHead>Employee ID</TableHead>
-                      <TableHead>Contact</TableHead>
+                      <TableHead>{t("common.employeeId")}</TableHead>
+                      <TableHead>{t("common.contact")}</TableHead>
                       <TableHead>Role</TableHead>
-                      <TableHead>Department</TableHead>
+                      <TableHead>{t("common.department")}</TableHead>
                       <TableHead>Unit</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
+                      <TableHead className="text-right">{t("common.actions")}</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -475,12 +477,12 @@ export default function ManageUsers() {
                               </Avatar>
                               <div>
                                 <p className="font-medium text-sm">{p.name}</p>
-                                <p className="text-xs text-muted-foreground">{p.username || "—"}</p>
+                                <p className="text-xs text-muted-foreground">{p.username || "â€”"}</p>
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="text-sm">{p.employee_id || "—"}</TableCell>
-                          <TableCell className="text-sm">{p.contact || "—"}</TableCell>
+                          <TableCell className="text-sm">{p.employee_id || "â€”"}</TableCell>
+                          <TableCell className="text-sm">{p.contact || "â€”"}</TableCell>
                           <TableCell>
                             <Badge variant={roleBadgeVariant[currentRole] ?? "outline"}>{formatRoleLabel(currentRole)}</Badge>
                           </TableCell>
@@ -501,7 +503,7 @@ export default function ManageUsers() {
                     })}
                     {filtered?.length === 0 && (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No users found.</TableCell>
+                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">{t("manageUsers.noUsers")}</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
@@ -516,26 +518,26 @@ export default function ManageUsers() {
       <Dialog open={addOpen} onOpenChange={setAddOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Add New User</DialogTitle>
-            <DialogDescription>Create a new user account.</DialogDescription>
+            <DialogTitle>{t("manageUsers.addNewUser")}</DialogTitle>
+            <DialogDescription>{t("manageUsers.createAccountDesc")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Full Name *</Label>
-              <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="John Doe" />
+              <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={t("manageUsers.namePlaceholder")} />
             </div>
             <div className="space-y-2">
               <Label>Email *</Label>
               <Input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="john@company.com" />
             </div>
             <div className="space-y-2">
-              <Label>Username</Label>
+              <Label>{t("manageUsers.username")}</Label>
               <Input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} placeholder="john.doe" />
             </div>
             <div className="space-y-2">
               <Label>Password *</Label>
               <div className="relative">
-                <Input type={showPassword ? "text" : "password"} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="Min 6 characters" className="pr-10" />
+                <Input type={showPassword ? "text" : "password"} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder={t("manageUsers.passwordMin")} className="pr-10" />
                 <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setShowPassword(!showPassword)}>
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -543,11 +545,11 @@ export default function ManageUsers() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Employee ID</Label>
+                <Label>{t("common.employeeId")}</Label>
                 <Input value={form.employeeId} onChange={e => setForm({ ...form, employeeId: e.target.value })} placeholder="EMP-001" />
               </div>
               <div className="space-y-2">
-                <Label>Contact</Label>
+                <Label>{t("common.contact")}</Label>
                 <Input value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })} placeholder="+255..." />
               </div>
             </div>
@@ -564,7 +566,7 @@ export default function ManageUsers() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Department</Label>
+                <Label>{t("common.department")}</Label>
                 <Select value={form.departmentId} onValueChange={(v) => setForm({ ...form, departmentId: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -579,7 +581,7 @@ export default function ManageUsers() {
             <div className="space-y-2">
               <Label>Unit *</Label>
               <Select value={form.unitId} onValueChange={(v) => setForm({ ...form, unitId: v })}>
-                <SelectTrigger><SelectValue placeholder="Select Unit" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("manageUsers.selectUnit")} /></SelectTrigger>
                 <SelectContent>
                   {units?.map(u => (
                     <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
@@ -589,7 +591,7 @@ export default function ManageUsers() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddOpen(false)} disabled={formLoading}>Cancel</Button>
+            <Button variant="outline" onClick={() => setAddOpen(false)} disabled={formLoading}>{t("common.cancel")}</Button>
             <Button onClick={handleAddUser} disabled={formLoading}>
               {formLoading ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</>) : "Save User"}
             </Button>
@@ -601,22 +603,22 @@ export default function ManageUsers() {
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Edit User</DialogTitle>
+            <DialogTitle>{t("manageUsers.editUser")}</DialogTitle>
             <DialogDescription>Update user details for {selectedUser?.name}.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Full Name</Label>
+              <Label>{t("manageUsers.fullName")}</Label>
               <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
             </div>
             <div className="space-y-2">
-              <Label>Email</Label>
-              <Input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="Leave blank to keep current" />
+              <Label>{t("common.email")}</Label>
+              <Input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder={t("manageUsers.leaveBlankKeep")} />
             </div>
             <div className="space-y-2">
-              <Label>Password</Label>
+              <Label>{t("manageUsers.password")}</Label>
               <div className="relative">
-                <Input type={showPassword ? "text" : "password"} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="Leave blank to keep current" className="pr-10" />
+                <Input type={showPassword ? "text" : "password"} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder={t("manageUsers.leaveBlankKeep")} className="pr-10" />
                 <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setShowPassword(!showPassword)}>
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
@@ -624,16 +626,16 @@ export default function ManageUsers() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label>Username</Label>
+                <Label>{t("manageUsers.username")}</Label>
                 <Input value={form.username} onChange={e => setForm({ ...form, username: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <Label>Employee ID</Label>
+                <Label>{t("common.employeeId")}</Label>
                 <Input value={form.employeeId} onChange={e => setForm({ ...form, employeeId: e.target.value })} />
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Contact</Label>
+              <Label>{t("common.contact")}</Label>
               <Input value={form.contact} onChange={e => setForm({ ...form, contact: e.target.value })} />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -649,7 +651,7 @@ export default function ManageUsers() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Department</Label>
+                <Label>{t("common.department")}</Label>
                 <Select value={form.departmentId} onValueChange={(v) => setForm({ ...form, departmentId: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -664,7 +666,7 @@ export default function ManageUsers() {
             <div className="space-y-2">
               <Label>Unit *</Label>
               <Select value={form.unitId} onValueChange={(v) => setForm({ ...form, unitId: v })}>
-                <SelectTrigger><SelectValue placeholder="Select Unit" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder={t("manageUsers.selectUnit")} /></SelectTrigger>
                 <SelectContent>
                   {units?.map(u => (
                     <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
@@ -674,7 +676,7 @@ export default function ManageUsers() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={formLoading}>Cancel</Button>
+            <Button variant="outline" onClick={() => setEditOpen(false)} disabled={formLoading}>{t("common.cancel")}</Button>
             <Button onClick={handleEditUser} disabled={formLoading}>
               {formLoading ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Saving...</>) : "Save Changes"}
             </Button>
@@ -686,13 +688,13 @@ export default function ManageUsers() {
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogTitle>{t("manageUsers.deleteUser")}</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete <strong>{selectedUser?.name}</strong>? This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={formLoading}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={formLoading}>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteUser} disabled={formLoading} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {formLoading ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Deleting...</>) : "Delete"}
             </AlertDialogAction>

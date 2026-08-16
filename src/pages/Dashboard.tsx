@@ -1,4 +1,5 @@
-import { useState, useMemo } from "react";
+﻿import { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/AppLayout";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -72,6 +73,7 @@ function EmptyChart() {
 function ChartSkeleton() { return <Skeleton className="w-full h-[220px]" />; }
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const { user, role, profile, allowedUnitNames } = useAuth();
   const [unitFilter, setUnitFilter] = useState<string>("all");
   const [deptFilter, setDeptFilter] = useState<string>("all");
@@ -230,7 +232,7 @@ export default function Dashboard() {
 
   const dateLabel = dateRange?.from
     ? dateRange.to
-      ? `${format(dateRange.from, "dd-MM-yyyy")} – ${format(dateRange.to, "dd-MM-yyyy")}`
+      ? `${format(dateRange.from, "dd-MM-yyyy")} â€“ ${format(dateRange.to, "dd-MM-yyyy")}`
       : format(dateRange.from, "dd-MM-yyyy")
     : "Select date range";
 
@@ -240,7 +242,7 @@ export default function Dashboard() {
   };
 
   return (
-    <AppLayout title="Ticketing Dashboard">
+    <AppLayout title={t("dashboard.title")}>
       <div className="space-y-3">
         {/* Title bar */}
         <div className="bg-[hsl(220,40%,90%)] border rounded-md py-2">

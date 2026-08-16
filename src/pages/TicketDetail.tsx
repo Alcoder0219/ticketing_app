@@ -1,4 +1,4 @@
-import { AppLayout } from "@/components/AppLayout";
+﻿import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PriorityBadge } from "@/components/PriorityBadge";
@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useDeleteTicket } from "@/hooks/useDeleteTicket";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useToast } from "@/hooks/use-toast";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -37,6 +38,7 @@ import { calculateAgingDays, getTicketEndDate, isTicketClosed } from "@/lib/agin
 
 
 export default function TicketDetail() {
+  const { t } = useTranslation();
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, role, allowedUnitIds, allowedUnitNames } = useAuth();
@@ -146,11 +148,11 @@ export default function TicketDetail() {
 
   const handleAssign = async () => {
     if (!assignTo) {
-      toast({ title: "Team member required", description: "Please select a team member.", variant: "destructive" });
+      toast({ title: t("ticket.teamMemberRequired"), description: t("ticket.teamMemberRequiredDesc"), variant: "destructive" });
       return;
     }
     if (!targetDate) {
-      toast({ title: "Target date required", description: "Please select a target date.", variant: "destructive" });
+      toast({ title: t("ticket.targetDateRequired"), description: t("ticket.targetDateRequiredDesc"), variant: "destructive" });
       return;
     }
     const updates: Record<string, any> = { assigned_to: assignTo, status: "in_progress", target_date: targetDate };
@@ -166,7 +168,7 @@ export default function TicketDetail() {
       message: `You have been assigned ticket ${ticket!.ticket_number}`,
       type: "assignment",
     });
-    toast({ title: "Ticket assigned" });
+    toast({ title: t("ticket.assignedToast") });
     setAssignTo("");
     setTargetDate("");
   };
@@ -177,7 +179,7 @@ export default function TicketDetail() {
     await addHistory("Updated target date to " + nextTargetDate, undefined, undefined, remarks);
     setNextTargetDate("");
     setRemarks("");
-    toast({ title: "Target date updated" });
+    toast({ title: t("ticket.targetDateUpdated") });
   };
 
   const handleResolveSubmit = async ({ photos, note }: { photos: string[]; note: string | null }) => {
@@ -214,12 +216,12 @@ export default function TicketDetail() {
       type: "status_change",
     });
     setRemarks("");
-    toast({ title: "Ticket closed" });
+    toast({ title: t("ticket.closedToast") });
   };
 
   const handleReopen = async () => {
     if (reopenRemarks.length < 20) {
-      toast({ title: "Error", description: "Please provide at least 20 characters explaining why.", variant: "destructive" });
+      toast({ title: t("messages.error"), description: t("ticket.reopenTooShort"), variant: "destructive" });
       return;
     }
 
@@ -255,7 +257,7 @@ export default function TicketDetail() {
     setReopenRemarks("");
     setReopenFiles([]);
     setReopenOpen(false);
-    toast({ title: "Ticket reopened successfully" });
+    toast({ title: t("ticket.reopenedToast") });
   };
 
   const handleRating = async () => {
@@ -266,9 +268,9 @@ export default function TicketDetail() {
       feedback: feedback || null,
     });
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: t("messages.error"), description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "Thank you for your feedback!" });
+      toast({ title: t("ticket.thanksFeedback") });
       invalidate();
     }
   };
@@ -308,24 +310,22 @@ export default function TicketDetail() {
       const ownPlant = allowedUnitNames && allowedUnitNames.length > 0 ? allowedUnitNames.join(", ") : "your assigned";
       const otherPlant = ticketUnitName || "another";
       return (
-        <AppLayout title="Access Denied">
+        <AppLayout title={t("messages.accessDenied")}>
           <div className="flex items-center justify-center py-16 px-4">
             <Card className="max-w-md w-full border-red-200 shadow-md">
               <CardContent className="pt-8 pb-6 text-center space-y-4">
                 <div className="mx-auto h-14 w-14 rounded-full bg-red-50 flex items-center justify-center">
                   <AlertTriangle className="h-7 w-7 text-red-600" />
                 </div>
-                <h2 className="text-xl font-bold text-foreground">Access Denied</h2>
+                <h2 className="text-xl font-bold text-foreground">{t("messages.accessDenied")}</h2>
                 <p className="text-sm text-muted-foreground">
-                  You do not have permission to view this ticket. This ticket belongs to the{" "}
-                  <span className="font-semibold text-foreground">{otherPlant}</span> plant and your access is restricted to{" "}
-                  <span className="font-semibold text-foreground">{ownPlant}</span> plant only.
+                  {t("messages.accessDeniedTicket", { otherPlant, ownPlant })}
                 </p>
                 <div className="flex justify-center gap-2 pt-2">
                   <Button variant="outline" onClick={() => navigate(-1)}>
-                    <ArrowLeft className="h-4 w-4 mr-1" /> Go Back
+                    <ArrowLeft className="h-4 w-4 mr-1" /> {t("ticket.goBack")}
                   </Button>
-                  <Button onClick={() => navigate("/my-tickets")}>Go to My Tickets</Button>
+                  <Button onClick={() => navigate("/my-tickets")}>{t("ticket.goToMyTickets")}</Button>
                 </div>
               </CardContent>
             </Card>
@@ -334,10 +334,10 @@ export default function TicketDetail() {
       );
     }
     return (
-      <AppLayout title="Ticket Not Found">
+      <AppLayout title={t("ticket.notFoundTitle")}>
         <div className="flex flex-col items-center justify-center h-64">
-          <p className="text-muted-foreground">Ticket not found.</p>
-          <Button variant="outline" className="mt-4" onClick={() => navigate(-1)}>Go Back</Button>
+          <p className="text-muted-foreground">{t("ticket.notFound")}</p>
+          <Button variant="outline" className="mt-4" onClick={() => navigate(-1)}>{t("ticket.goBack")}</Button>
         </div>
       </AppLayout>
     );
@@ -386,7 +386,7 @@ export default function TicketDetail() {
               onClick={() => {
                 const assignedName = (ticket as any).assigned_profile?.name || "unassigned";
                 const slaDue = ticket.sla_due_at ? formatDate(ticket.sla_due_at, true) : "n/a";
-                const prefillMessage = `I have a question about Ticket #${ticket.ticket_number} — ${ticket.title}. Status: ${statusMap[ticket.status]}. Assigned to: ${assignedName}. SLA due: ${slaDue}.`;
+                const prefillMessage = `I have a question about Ticket #${ticket.ticket_number} â€” ${ticket.title}. Status: ${statusMap[ticket.status]}. Assigned to: ${assignedName}. SLA due: ${slaDue}.`;
                 navigate("/ai-assistant", {
                   state: {
                     prefillMessage,
@@ -433,7 +433,7 @@ export default function TicketDetail() {
           <div className="lg:col-span-2 space-y-6">
             <Tabs defaultValue="details" className="w-full">
               <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="details">Details & Activity</TabsTrigger>
+                <TabsTrigger value="details">{t("ticket.detailsAndActivity")}</TabsTrigger>
                 <TabsTrigger value="thread" className="flex items-center gap-2">
                   Thread
                   <span className={`h-2 w-2 rounded-full ${["resolved","closed"].includes(ticket.status) ? "bg-muted-foreground/40" : "bg-emerald-500 animate-pulse"}`} />
@@ -451,7 +451,7 @@ export default function TicketDetail() {
 
             {/* Description */}
             <Card className={`border shadow-sm border-l-4 ${priorityBorderColor[(ticket as any).priority || "medium"]}`}>
-              <CardHeader><CardTitle className="text-sm font-semibold">Description</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-sm font-semibold">{t("common.description")}</CardTitle></CardHeader>
               <CardContent>
                 <p className="text-sm leading-relaxed">{ticket.description || "No description provided."}</p>
                 {(ticket as any).voice_recording_url && (
@@ -460,7 +460,7 @@ export default function TicketDetail() {
                       <Mic className="h-4 w-4" />
                     </div>
                     <div className="flex flex-col min-w-0">
-                      <span className="text-sm font-medium">Voice Recording</span>
+                      <span className="text-sm font-medium">{t("ticket.voiceRecording")}</span>
                       {(ticket as any).voice_recording_duration ? (
                         <span className="text-xs text-muted-foreground">
                           {Math.floor((ticket as any).voice_recording_duration / 60)}:
@@ -519,7 +519,7 @@ export default function TicketDetail() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-xs text-muted-foreground">
-                    Resolved by {resolverName || (ticket as any).closed_by_profile?.name || "—"}
+                    Resolved by {resolverName || (ticket as any).closed_by_profile?.name || "â€”"}
                     {(ticket as any).resolved_at ? ` on ${formatDate((ticket as any).resolved_at, true)}` : ""}
                   </p>
                   <div className="grid grid-cols-3 gap-3">
@@ -548,11 +548,11 @@ export default function TicketDetail() {
             {/* Assign section for HOD */}
             {isHOD && (ticket.status === "open" || ticket.status === "reopened") && deptMembers && deptMembers.length > 0 && (
               <Card className="border shadow-sm">
-                <CardHeader><CardTitle className="text-sm font-semibold">Assign Ticket</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-sm font-semibold">{t("ticket.assignTicket")}</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex gap-3">
                     <Select value={assignTo} onValueChange={setAssignTo} required>
-                      <SelectTrigger className="flex-1" aria-required="true"><SelectValue placeholder="Select team member *" /></SelectTrigger>
+                      <SelectTrigger className="flex-1" aria-required="true"><SelectValue placeholder={t("ticket.selectTeamMember")} /></SelectTrigger>
                       <SelectContent>
                         {deptMembers.map((m) => (
                           <SelectItem key={m.user_id} value={m.user_id}>{m.name}</SelectItem>
@@ -564,7 +564,7 @@ export default function TicketDetail() {
                     </div>
                     <Button onClick={handleAssign} disabled={!assignTo || !targetDate}><UserPlus className="h-4 w-4 mr-1" /> Assign</Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">Both team member and target date are required.</p>
+                  <p className="text-xs text-muted-foreground">{t("ticket.assignRequirements")}</p>
                 </CardContent>
               </Card>
             )}
@@ -572,20 +572,20 @@ export default function TicketDetail() {
             {/* Set next target date */}
             {isAssigned && ticket.status === "in_progress" && (
               <Card className="border shadow-sm">
-                <CardHeader><CardTitle className="text-sm font-semibold">Update Target Date</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-sm font-semibold">{t("ticket.updateTargetDate")}</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex gap-3">
                     <Input type="date" value={nextTargetDate} onChange={(e) => setNextTargetDate(e.target.value)} className="w-48" />
-                    <Button variant="outline" onClick={handleSetTargetDate} disabled={!nextTargetDate}>Update</Button>
+                    <Button variant="outline" onClick={handleSetTargetDate} disabled={!nextTargetDate}>{t("common.update")}</Button>
                   </div>
-                  <Textarea placeholder="Reason for date change..." rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+                  <Textarea placeholder={t("ticket.reasonForDateChange")} rows={2} value={remarks} onChange={(e) => setRemarks(e.target.value)} />
                 </CardContent>
               </Card>
             )}
 
             {/* Timeline */}
             <Card className="border shadow-sm">
-              <CardHeader><CardTitle className="text-sm font-semibold">Activity Timeline</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-sm font-semibold">{t("ticket.activityTimeline")}</CardTitle></CardHeader>
               <CardContent>
                 {(history || []).length > 0 ? (
                   <div className="space-y-0">
@@ -600,7 +600,7 @@ export default function TicketDetail() {
                         <div className="pb-6">
                           <p className="text-sm font-medium">{item.action}</p>
                           <p className="text-xs text-muted-foreground">
-                            by {(item as any).performer?.name} • {formatDate(item.created_at, true)}
+                            by {(item as any).performer?.name} â€¢ {formatDate(item.created_at, true)}
                           </p>
                           {item.remarks && <p className="text-sm text-muted-foreground mt-1 bg-muted/50 rounded-md p-2">{item.remarks}</p>}
                           {item.new_status && <div className="mt-1"><StatusBadge status={statusMap[item.new_status]} /></div>}
@@ -609,7 +609,7 @@ export default function TicketDetail() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No activity recorded yet.</p>
+                  <p className="text-sm text-muted-foreground">{t("ticket.noActivity")}</p>
                 )}
               </CardContent>
             </Card>
@@ -619,7 +619,7 @@ export default function TicketDetail() {
             {/* Rating */}
             {ticket.status === "closed" && isRaiser && (
               <Card className="border shadow-sm">
-                <CardHeader><CardTitle className="text-sm font-semibold">Feedback & Rating</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-sm font-semibold">{t("ticket.feedbackAndRating")}</CardTitle></CardHeader>
                 <CardContent className="space-y-3">
                   {ticketRating ? (
                     <>
@@ -640,9 +640,9 @@ export default function TicketDetail() {
                           </button>
                         ))}
                       </div>
-                      <Textarea placeholder="Optional feedback..." rows={2} value={feedback} onChange={(e) => setFeedback(e.target.value)} />
+                      <Textarea placeholder={t("ticket.optionalFeedback")} rows={2} value={feedback} onChange={(e) => setFeedback(e.target.value)} />
                       <div className="flex justify-end">
-                        <Button size="sm" onClick={handleRating} disabled={rating === 0}>Submit Feedback</Button>
+                        <Button size="sm" onClick={handleRating} disabled={rating === 0}>{t("ticket.submitFeedback")}</Button>
                       </div>
                     </>
                   )}
@@ -653,7 +653,7 @@ export default function TicketDetail() {
             {/* Reopen info */}
             {ticket.reopen_remarks && (
               <Card className="border border-red-200 shadow-sm">
-                <CardHeader><CardTitle className="text-sm font-semibold text-red-700">Reopen Details</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-sm font-semibold text-red-700">{t("ticket.reopenDetails")}</CardTitle></CardHeader>
                 <CardContent className="space-y-2">
                   <p className="text-sm">{ticket.reopen_remarks}</p>
                   {ticket.reopened_at && <p className="text-xs text-muted-foreground">Reopened: {formatDate(ticket.reopened_at, true)}</p>}
@@ -670,10 +670,10 @@ export default function TicketDetail() {
           {/* Sidebar */}
           <div className="space-y-4">
             <Card className="border shadow-sm">
-              <CardHeader><CardTitle className="text-sm font-semibold">Details</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-sm font-semibold">{t("ticket.details")}</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                <DetailRow icon={<Building2 className="h-4 w-4" />} label="Unit" value={(ticket as any).unit?.name || "—"} />
-                <DetailRow icon={<Building2 className="h-4 w-4" />} label="Issue Dept" value={(ticket as any).issue_dept?.name || "—"} />
+                <DetailRow icon={<Building2 className="h-4 w-4" />} label="Unit" value={(ticket as any).unit?.name || "â€”"} />
+                <DetailRow icon={<Building2 className="h-4 w-4" />} label="Issue Dept" value={(ticket as any).issue_dept?.name || "â€”"} />
                 <DetailRow icon={<Calendar className="h-4 w-4" />} label="Raised" value={formatDate(ticket.created_at, true)} />
                 {(() => {
                   const closed = isTicketClosed(ticket.status);
@@ -683,7 +683,7 @@ export default function TicketDetail() {
                     <div className="flex items-start gap-3">
                       <div className="text-muted-foreground mt-0.5"><Clock className="h-4 w-4" /></div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs text-muted-foreground">Aging</p>
+                        <p className="text-xs text-muted-foreground">{t("aging.label")}</p>
                         <p className="text-sm font-medium">
                           <AgingBadge
                             createdAt={ticket.created_at}
@@ -715,9 +715,9 @@ export default function TicketDetail() {
             </Card>
 
             <Card className="border shadow-sm">
-              <CardHeader><CardTitle className="text-sm font-semibold">Raised By</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-sm font-semibold">{t("ticket.raisedBy")}</CardTitle></CardHeader>
               <CardContent className="space-y-1">
-                <p className="text-sm font-medium">{(ticket as any).raiser?.name || "—"}</p>
+                <p className="text-sm font-medium">{(ticket as any).raiser?.name || "â€”"}</p>
                 <p className="text-xs text-muted-foreground">{(ticket as any).raiser?.employee_id || ""}</p>
                 <p className="text-xs text-muted-foreground">{(ticket as any).raiser?.contact || ""}</p>
               </CardContent>
@@ -725,7 +725,7 @@ export default function TicketDetail() {
 
             {(ticket as any).assigned_profile && (
               <Card className="border shadow-sm">
-                <CardHeader><CardTitle className="text-sm font-semibold">Assigned To</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-sm font-semibold">{t("ticket.assignedTo")}</CardTitle></CardHeader>
                 <CardContent className="space-y-1">
                   <p className="text-sm font-medium">{(ticket as any).assigned_profile.name}</p>
                   <p className="text-xs text-muted-foreground">{(ticket as any).assigned_profile.employee_id || ""}</p>
@@ -735,7 +735,7 @@ export default function TicketDetail() {
 
             {ticket.remarks && (
               <Card className="border shadow-sm">
-                <CardHeader><CardTitle className="text-sm font-semibold">Latest Remarks</CardTitle></CardHeader>
+                <CardHeader><CardTitle className="text-sm font-semibold">{t("ticket.latestRemarks")}</CardTitle></CardHeader>
                 <CardContent><p className="text-sm text-muted-foreground">{ticket.remarks}</p></CardContent>
               </Card>
             )}
@@ -747,8 +747,8 @@ export default function TicketDetail() {
       <Dialog open={reopenOpen} onOpenChange={setReopenOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Reopen Ticket — {ticket?.ticket_number}</DialogTitle>
-            <DialogDescription>Please explain why this ticket needs to be reopened.</DialogDescription>
+            <DialogTitle>Reopen Ticket â€” {ticket?.ticket_number}</DialogTitle>
+            <DialogDescription>{t("ticket.reopenExplain")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
@@ -756,7 +756,7 @@ export default function TicketDetail() {
               <Textarea
                 value={reopenRemarks}
                 onChange={e => setReopenRemarks(e.target.value)}
-                placeholder="Please explain why this ticket needs to be reopened (min 20 characters)"
+                placeholder={t("ticket.reopenPlaceholder")}
                 rows={4}
               />
               <p className="text-xs text-muted-foreground">{reopenRemarks.length}/20 minimum characters</p>
@@ -792,8 +792,8 @@ export default function TicketDetail() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setReopenOpen(false)}>Cancel</Button>
-            <Button onClick={handleReopen} disabled={reopenRemarks.length < 20}>Reopen Ticket</Button>
+            <Button variant="outline" onClick={() => setReopenOpen(false)}>{t("common.cancel")}</Button>
+            <Button onClick={handleReopen} disabled={reopenRemarks.length < 20}>{t("ticket.reopenTicket")}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -811,14 +811,14 @@ export default function TicketDetail() {
       <Dialog open={!!lightboxUrl} onOpenChange={(o) => !o && setLightboxUrl(null)}>
         <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Resolution Proof</DialogTitle>
+            <DialogTitle>{t("ticket.resolutionProof")}</DialogTitle>
           </DialogHeader>
           {lightboxUrl && (
             <div className="space-y-3">
               <SignedImage src={lightboxUrl} bucket="ticket-resolution-photos" alt="Resolution proof" className="w-full rounded-lg border max-h-[70vh] object-contain" />
               <div className="flex justify-end">
                 <SignedLink href={lightboxUrl} bucket="ticket-resolution-photos" download>
-                  <Button variant="outline" size="sm">Download</Button>
+                  <Button variant="outline" size="sm">{t("ticket.download")}</Button>
                 </SignedLink>
               </div>
             </div>

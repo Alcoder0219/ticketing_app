@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -28,6 +29,7 @@ import { useTicketsRealtime } from "@/hooks/useTicketsRealtime";
 import { formatDate } from "@/utils/dateFormat";
 
 export default function PendingTickets() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { user, profile, role } = useAuth();
   const { toast } = useToast();
@@ -130,11 +132,11 @@ export default function PendingTickets() {
       });
     },
     onSuccess: () => {
-      toast({ title: "Ticket Assigned", description: "Ticket has been assigned and moved to In Progress." });
+      toast({ title: t("ticket.assignedTitle"), description: t("ticket.assignedDesc") });
       queryClient.invalidateQueries({ queryKey: ["pending-tickets"] });
     },
     onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: t("messages.error"), description: err.message, variant: "destructive" });
     },
   });
 
@@ -146,19 +148,19 @@ export default function PendingTickets() {
   });
 
   return (
-    <AppLayout title="Pending Tickets">
+    <AppLayout title={t("nav.pendingTickets")}>
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search pending tickets..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input placeholder={t("ticket.searchPending")} className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
             <SelectTrigger className="w-44">
-              <SelectValue placeholder="Department" />
+              <SelectValue placeholder={t("common.department")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Departments</SelectItem>
+              <SelectItem value="all">{t("common.allDepartments")}</SelectItem>
               {departments?.map((d) => (
                 <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
               ))}
@@ -166,17 +168,17 @@ export default function PendingTickets() {
           </Select>
           <Select value={agingFilter} onValueChange={(v) => setAgingFilter(v as AgingFilterValue)}>
             <SelectTrigger className="w-44">
-              <SelectValue placeholder="Aging" />
+              <SelectValue placeholder={t("aging.label")} />
             </SelectTrigger>
             <SelectContent>
               {AGING_FILTER_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                <SelectItem key={o.value} value={o.value}>{t(`aging.filter.${o.value}`, { defaultValue: o.label })}</SelectItem>
               ))}
             </SelectContent>
           </Select>
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted text-sm">
             <Clock className="h-4 w-4 text-warning" />
-            <span>{filtered.length} pending ticket{filtered.length !== 1 ? "s" : ""}</span>
+            <span>{filtered.length} {t("status.pending").toLowerCase()}</span>
           </div>
         </div>
 
@@ -228,8 +230,8 @@ export default function PendingTickets() {
                       <button
                         onClick={(e) => { e.stopPropagation(); deleteTicket(ticket.id); }}
                         className="text-destructive hover:bg-destructive/10 rounded p-1.5"
-                        title="Delete ticket"
-                        aria-label="Delete ticket"
+                        title={t("ticket.deleteTicket")}
+                        aria-label={t("ticket.deleteTicket")}
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -242,7 +244,7 @@ export default function PendingTickets() {
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-56 p-2">
-                          <p className="text-xs font-medium mb-2 text-muted-foreground">Assign to team member</p>
+                          <p className="text-xs font-medium mb-2 text-muted-foreground">{t("ticket.assignToTeamMember")}</p>
                           {teamMembers?.length ? teamMembers.map((m) => (
                             <button
                               key={m.user_id}

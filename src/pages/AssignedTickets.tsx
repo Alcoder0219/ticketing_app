@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -33,6 +34,7 @@ import { useTicketsRealtime } from "@/hooks/useTicketsRealtime";
 const statuses = ["open", "in_progress", "resolved", "closed", "reopened"];
 
 export default function AssignedTickets() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { user, profile, role } = useAuth();
   const { toast } = useToast();
@@ -107,11 +109,11 @@ export default function AssignedTickets() {
       });
     },
     onSuccess: () => {
-      toast({ title: "Ticket Reassigned" });
+      toast({ title: t("ticket.reassignedTitle") });
       queryClient.invalidateQueries({ queryKey: ["assigned-tickets"] });
     },
     onError: (err: Error) => {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: t("messages.error"), description: err.message, variant: "destructive" });
     },
   });
 
@@ -151,11 +153,11 @@ export default function AssignedTickets() {
         </div>
         <h3 className="text-sm font-medium text-foreground truncate">{ticket.title}</h3>
         <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
-          <span>From: {(ticket as any).raiser?.name || "—"}</span>
-          {!isTeamMember && <span>Assigned: {(ticket as any).assignee?.name || "—"}</span>}
-          <span>Dept: {(ticket as any).issue_dept?.name || "—"}</span>
+          <span>{t("ticket.from")}: {(ticket as any).raiser?.name || "—"}</span>
+          {!isTeamMember && <span>{t("status.assigned")}: {(ticket as any).assignee?.name || "—"}</span>}
+          <span>{t("common.department")}: {(ticket as any).issue_dept?.name || "—"}</span>
           <span>
-            Aging:{" "}
+            {t("aging.label")}:{" "}
             <AgingBadge
               createdAt={ticket.created_at}
               status={ticket.status}
@@ -175,8 +177,8 @@ export default function AssignedTickets() {
           <button
             onClick={(e) => { e.stopPropagation(); deleteTicket(ticket.id); }}
             className="text-destructive hover:bg-destructive/10 rounded p-1.5"
-            title="Delete ticket"
-            aria-label="Delete ticket"
+            title={t("ticket.deleteTicket")}
+            aria-label={t("ticket.deleteTicket")}
           >
             <Trash2 className="h-4 w-4" />
           </button>
@@ -189,7 +191,7 @@ export default function AssignedTickets() {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-56 p-2">
-              <p className="text-xs font-medium mb-2 text-muted-foreground">Reassign to</p>
+              <p className="text-xs font-medium mb-2 text-muted-foreground">{t("ticket.reassignTo")}</p>
               {teamMembers?.map(m => (
                 <button
                   key={m.user_id}
@@ -210,15 +212,15 @@ export default function AssignedTickets() {
   );
 
   return (
-    <AppLayout title="Assigned Tickets">
+    <AppLayout title={t("nav.assignedTickets")}>
       <div className="space-y-4">
         {/* Summary bar for team member */}
         {isTeamMember && (
           <div className="flex items-center gap-4 p-3 rounded-lg bg-primary/5 border border-primary/20">
-            <span className="text-sm font-medium">You have <strong>{allTickets.length}</strong> assigned ticket{allTickets.length !== 1 ? "s" : ""}</span>
+            <span className="text-sm font-medium">{t("ticket.assignedCount", { count: allTickets.length })}</span>
             {overdueCount > 0 && (
               <span className="flex items-center gap-1 text-sm text-destructive font-medium">
-                <AlertTriangle className="h-3.5 w-3.5" /> {overdueCount} overdue
+                <AlertTriangle className="h-3.5 w-3.5" /> {t("ticket.overdueCount", { count: overdueCount })}
               </span>
             )}
           </div>
@@ -227,27 +229,27 @@ export default function AssignedTickets() {
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search tickets..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input placeholder={t("ticket.searchTickets")} className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-40">
               <Filter className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Status" />
+              <SelectValue placeholder={t("common.status")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="all">{t("common.allStatuses")}</SelectItem>
               {statuses.map((s) => (
-                <SelectItem key={s} value={s}>{statusMap[s]}</SelectItem>
+                <SelectItem key={s} value={s}>{t(`status.${statusMap[s]}`, { defaultValue: statusMap[s] })}</SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Select value={deptFilter} onValueChange={setDeptFilter}>
             <SelectTrigger className="w-48">
               <Filter className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Department" />
+              <SelectValue placeholder={t("common.department")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Departments</SelectItem>
+              <SelectItem value="all">{t("common.allDepartments")}</SelectItem>
               {deptOptions.map((d) => (
                 <SelectItem key={d} value={d}>{d}</SelectItem>
               ))}
@@ -256,10 +258,10 @@ export default function AssignedTickets() {
           <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
             <SelectTrigger className="w-48">
               <Filter className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Assigned Person" />
+              <SelectValue placeholder={t("common.assignedPerson")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Assignees</SelectItem>
+              <SelectItem value="all">{t("common.allAssignees")}</SelectItem>
               {assigneeOptions.map((a) => (
                 <SelectItem key={a} value={a}>{a}</SelectItem>
               ))}
@@ -268,10 +270,10 @@ export default function AssignedTickets() {
           <Select value={unitFilter} onValueChange={setUnitFilter}>
             <SelectTrigger className="w-40">
               <Filter className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Unit" />
+              <SelectValue placeholder={t("common.unit")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Units</SelectItem>
+              <SelectItem value="all">{t("common.allUnits")}</SelectItem>
               {unitOptions.map((u) => (
                 <SelectItem key={u} value={u}>{u}</SelectItem>
               ))}
@@ -280,11 +282,11 @@ export default function AssignedTickets() {
           <Select value={agingFilter} onValueChange={(v) => setAgingFilter(v as AgingFilterValue)}>
             <SelectTrigger className="w-44">
               <Filter className="h-4 w-4 mr-2" />
-              <SelectValue placeholder="Aging" />
+              <SelectValue placeholder={t("aging.label")} />
             </SelectTrigger>
             <SelectContent>
               {AGING_FILTER_OPTIONS.map((o) => (
-                <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                <SelectItem key={o.value} value={o.value}>{t(`aging.filter.${o.value}`, { defaultValue: o.label })}</SelectItem>
               ))}
             </SelectContent>
           </Select>

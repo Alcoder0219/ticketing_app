@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { Building2, PlusCircle, Pencil, Trash2, Save, Factory, Check, X, Bot } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/api/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -32,6 +33,7 @@ import { formatDate } from "@/utils/dateFormat";
 
 
 export default function Settings() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -215,18 +217,19 @@ export default function Settings() {
   const handleSaveSecurity = () => toast({ title: "Security Settings Saved" });
 
   return (
-    <AppLayout title="Settings">
+    <AppLayout title={t("settings.title")}>
       <div className="max-w-4xl mx-auto">
         <Tabs defaultValue="company" className="space-y-6">
-          <TabsList className="grid grid-cols-8 w-full">
-            <TabsTrigger value="company">Company</TabsTrigger>
-            <TabsTrigger value="units">Units</TabsTrigger>
-            <TabsTrigger value="departments">Departments</TabsTrigger>
-            <TabsTrigger value="sla">SLA Config</TabsTrigger>
-            <TabsTrigger value="notifications">Notifications</TabsTrigger>
-            <TabsTrigger value="ai-config"><Bot className="h-3.5 w-3.5 mr-1" />AI Config</TabsTrigger>
-            <TabsTrigger value="security">Security</TabsTrigger>
-            <TabsTrigger value="roles">Roles & Permissions</TabsTrigger>
+          {/* Scrolls horizontally on small screens instead of squashing the labels. */}
+          <TabsList className="flex w-full overflow-x-auto md:grid md:grid-cols-8">
+            <TabsTrigger value="company">{t("settings.company")}</TabsTrigger>
+            <TabsTrigger value="units">{t("settings.units")}</TabsTrigger>
+            <TabsTrigger value="departments">{t("settings.departments")}</TabsTrigger>
+            <TabsTrigger value="sla">{t("settings.slaConfig")}</TabsTrigger>
+            <TabsTrigger value="notifications">{t("settings.notifications")}</TabsTrigger>
+            <TabsTrigger value="ai-config"><Bot className="h-3.5 w-3.5 mr-1" />{t("settings.aiConfig")}</TabsTrigger>
+            <TabsTrigger value="security">{t("settings.security")}</TabsTrigger>
+            <TabsTrigger value="roles">{t("settings.rolesPermissions")}</TabsTrigger>
           </TabsList>
 
 
@@ -235,7 +238,7 @@ export default function Settings() {
           {/* Company */}
           <TabsContent value="company">
             <Card>
-              <CardHeader><CardTitle>Company Settings</CardTitle></CardHeader>
+              <CardHeader><CardTitle>{t("settings.companySettings")}</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <Label>Company Name</Label>
@@ -257,7 +260,7 @@ export default function Settings() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
                 <div>
-                  <CardTitle className="flex items-center gap-2"><Factory className="h-4 w-4" /> Manage Units</CardTitle>
+                  <CardTitle className="flex items-center gap-2"><Factory className="h-4 w-4" /> {t("settings.manageUnits")}</CardTitle>
                   <p className="text-sm text-muted-foreground mt-1">Add, edit or remove units available in the ticket form.</p>
                 </div>
                 <Button size="sm" onClick={() => { setNewUnitName(""); setUnitDialogOpen(true); }}>
@@ -334,7 +337,7 @@ export default function Settings() {
           <TabsContent value="departments">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2"><Building2 className="h-4 w-4" /> Department Management</CardTitle>
+                <CardTitle className="flex items-center gap-2"><Building2 className="h-4 w-4" /> {t("settings.departmentManagement")}</CardTitle>
                 <Button size="sm" onClick={() => { setEditingDept(null); setDeptName(""); setDeptDialogOpen(true); }}>
                   <PlusCircle className="h-4 w-4 mr-2" /> Add Department
                 </Button>
@@ -389,7 +392,7 @@ export default function Settings() {
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle>SLA Configuration</CardTitle>
+                  <CardTitle>{t("settings.slaConfiguration")}</CardTitle>
                   <div className="flex items-center gap-2">
                     <Label className="text-sm">Enforce SLA</Label>
                     <Switch checked={slaEnabled} onCheckedChange={setSlaEnabled} />
@@ -422,7 +425,7 @@ export default function Settings() {
           {/* Notifications */}
           <TabsContent value="notifications">
             <Card>
-              <CardHeader><CardTitle>Notification Preferences</CardTitle></CardHeader>
+              <CardHeader><CardTitle>{t("settings.notificationPreferences")}</CardTitle></CardHeader>
               <CardContent className="space-y-6">
                 {[
                   { label: "Email on new ticket assignment", checked: notifAssignment, onChange: setNotifAssignment },
@@ -449,7 +452,7 @@ export default function Settings() {
           {/* Security */}
           <TabsContent value="security">
             <Card>
-              <CardHeader><CardTitle>Security Settings</CardTitle></CardHeader>
+              <CardHeader><CardTitle>{t("settings.securitySettings")}</CardTitle></CardHeader>
               <CardContent className="space-y-6">
                 <div className="border rounded-lg p-4 space-y-3">
                   <Label className="font-medium">Minimum Password Length: {minPasswordLength[0]}</Label>
@@ -483,8 +486,8 @@ export default function Settings() {
           <TabsContent value="roles">
             <Tabs defaultValue="permissions" className="space-y-4">
               <TabsList>
-                <TabsTrigger value="permissions">Permissions</TabsTrigger>
-                <TabsTrigger value="sheets">Sheets Sync</TabsTrigger>
+                <TabsTrigger value="permissions">{t("settings.permissions")}</TabsTrigger>
+                <TabsTrigger value="sheets">{t("settings.sheetsSync")}</TabsTrigger>
               </TabsList>
               <TabsContent value="permissions">
                 <RolesPermissionsTab />

@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -7,8 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Eye, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useTranslation } from "react-i18next";
 
 export default function Login() {
+  const { t } = useTranslation();
   const { signIn, signUp } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -29,24 +31,24 @@ export default function Login() {
       const { error } = await signIn(email, password);
       setLoading(false);
       if (error) {
-        toast({ title: "Login Failed", description: error.message, variant: "destructive" });
+        toast({ title: t("login.loginFailed"), description: error.message, variant: "destructive" });
       } else {
         navigate("/");
       }
     } else {
       if (password.length < 6) {
         setLoading(false);
-        toast({ title: "Error", description: "Password must be at least 6 characters.", variant: "destructive" });
+        toast({ title: t("messages.error"), description: t("validation.passwordTooShort"), variant: "destructive" });
         return;
       }
       const { error } = await signUp(email, password, name, employeeId, contact);
       setLoading(false);
       if (error) {
-        toast({ title: "Registration Failed", description: error.message, variant: "destructive" });
+        toast({ title: t("login.registrationFailed"), description: error.message, variant: "destructive" });
       } else {
         toast({
-          title: "Account Created!",
-          description: "Please check your email to verify your account, then log in.",
+          title: t("login.accountCreated"),
+          description: t("login.accountCreatedDesc"),
         });
         setIsLogin(true);
         setPassword("");
@@ -64,10 +66,10 @@ export default function Login() {
           </div>
           <div>
             <CardTitle className="text-xl font-bold tracking-tight text-foreground">Amsons Group</CardTitle>
-            <p className="text-xs text-secondary font-semibold uppercase tracking-widest mt-1">Support Portal</p>
+            <p className="text-xs text-secondary font-semibold uppercase tracking-widest mt-1">{t("login.supportPortal")}</p>
           </div>
           <p className="text-sm text-muted-foreground">
-            {isLogin ? "Sign in to your account" : "Create a new account"}
+            {isLogin ? t("login.signInToAccount") : t("login.createNewAccount")}
           </p>
         </CardHeader>
         <CardContent className="pt-4">
@@ -75,34 +77,34 @@ export default function Login() {
             {!isLogin && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="name">Full Name *</Label>
-                  <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter your full name" required />
+                  <Label htmlFor="name">{t("login.name")} *</Label>
+                  <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("login.fullNamePlaceholder")} required />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label htmlFor="employeeId">Employee ID</Label>
+                    <Label htmlFor="employeeId">{t("login.employeeId")}</Label>
                     <Input id="employeeId" value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} placeholder="EMP-001" />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="contact">Contact Number</Label>
+                    <Label htmlFor="contact">{t("login.contactNumber")}</Label>
                     <Input id="contact" value={contact} onChange={(e) => setContact(e.target.value)} placeholder="+255 987654321" />
                   </div>
                 </div>
               </>
             )}
             <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" required />
+              <Label htmlFor="email">{t("login.email")} *</Label>
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("login.emailPlaceholder")} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password *</Label>
+              <Label htmlFor="password">{t("login.password")} *</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Min 6 characters"
+                  placeholder={t("login.passwordPlaceholder")}
                   required
                   minLength={6}
                   className="pr-10"
@@ -118,20 +120,20 @@ export default function Login() {
               </div>
             </div>
             <Button type="submit" className="w-full bg-primary hover:bg-primary/90" disabled={loading}>
-              {loading ? "Please wait..." : isLogin ? "Sign In" : "Create Account"}
+              {loading ? t("login.pleaseWait") : isLogin ? t("login.signIn") : t("login.createAccount")}
             </Button>
           </form>
           <div className="mt-6 text-center">
             <div className="relative mb-4">
               <div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div>
-              <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">or</span></div>
+              <div className="relative flex justify-center text-xs uppercase"><span className="bg-card px-2 text-muted-foreground">{t("login.or")}</span></div>
             </div>
             <button
               type="button"
               className="text-sm text-primary hover:underline font-medium"
               onClick={() => { setIsLogin(!isLogin); setPassword(""); }}
             >
-              {isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in"}
+              {isLogin ? t("login.noAccountSignUp") : t("login.haveAccountSignIn")}
             </button>
           </div>
         </CardContent>

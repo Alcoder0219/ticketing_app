@@ -7,6 +7,7 @@ import { getUserRole } from '../auth/authz.js';
 import { handleChatWithAI } from './chatWithAI.js';
 import { handleClassifyExtract } from './classifyExtract.js';
 import { syncTicketsToSheets } from './integrations.js';
+import { verifyGmailAuth, isEmailEnabled, missingGmailConfig, credentialSource } from '../notifications/gmail.js';
 
 export const functionsRouter = Router();
 
@@ -22,6 +23,20 @@ function adminGuard() {
     },
   ];
 }
+
+/**
+ * Email transport diagnostics. Admin-only, and deliberately returns only
+ * configuration STATE — never a key, token or assertion.
+ */
+functionsRouter.get('/email-status', ...adminGuard(), async (_req, res) => {
+  const verification = await verifyGmailAuth();
+  return res.json({
+    enabled: isEmailEnabled(),
+    missing: missingGmailConfig(),
+    credentialSource: credentialSource() ?? 'adc (resolved at send time)',
+    ...verification,
+  });
+});
 
 // ── admin-create-user ─────────────────────────────────────────────────────────
 functionsRouter.post('/admin-create-user', ...adminGuard(), async (req, res) => {

@@ -18,6 +18,7 @@ import {
 import { Pencil, Trash2, PlusCircle, Save, X, Shield, Bot, PlayCircle } from "lucide-react";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/api/client";
 import { useToast } from "@/hooks/use-toast";
 import { Permissions } from "@/contexts/PermissionsContext";
@@ -52,31 +53,32 @@ const DEFAULT_PERMS: Permissions = {
   department: "own",
 };
 
-const SIDEBAR_LABELS: { key: keyof Permissions["sidebar"]; label: string; icon?: string }[] = [
-  { key: "overview", label: "Overview" },
-  { key: "analytics", label: "Analytics" },
-  { key: "summary", label: "Summary" },
-  { key: "createTicket", label: "Create Ticket" },
-  { key: "myTickets", label: "My Tickets" },
-  { key: "pendingTickets", label: "Pending Tickets" },
-  { key: "assignedTickets", label: "Assigned Tickets" },
-  { key: "departmentTickets", label: "Department Tickets" },
-  { key: "pcReview", label: "PC Review" },
-  { key: "aiAssistant", label: "AI Assistant", icon: "bot" },
-  { key: "tutorialVideos", label: "Tutorial Videos", icon: "play" },
+// Labels are i18n keys, resolved at render time so they follow the active language.
+const SIDEBAR_LABELS: { key: keyof Permissions["sidebar"]; labelKey: string; icon?: string }[] = [
+  { key: "overview", labelKey: "nav.overview" },
+  { key: "analytics", labelKey: "nav.analytics" },
+  { key: "summary", labelKey: "nav.summary" },
+  { key: "createTicket", labelKey: "nav.createTicket" },
+  { key: "myTickets", labelKey: "nav.myTickets" },
+  { key: "pendingTickets", labelKey: "nav.pendingTickets" },
+  { key: "assignedTickets", labelKey: "nav.assignedTickets" },
+  { key: "departmentTickets", labelKey: "nav.departmentTickets" },
+  { key: "pcReview", labelKey: "nav.pcReview" },
+  { key: "aiAssistant", labelKey: "nav.aiAssistant", icon: "bot" },
+  { key: "tutorialVideos", labelKey: "nav.tutorialVideos", icon: "play" },
 
-  { key: "manageUsers", label: "Manage Users" },
-  { key: "settings", label: "Settings" },
+  { key: "manageUsers", labelKey: "nav.manageUsers" },
+  { key: "settings", labelKey: "nav.settings" },
 ];
 
-const TICKET_LABELS: { key: keyof Permissions["tickets"]; label: string; note?: string }[] = [
-  { key: "create", label: "Create Ticket" },
-  { key: "viewAll", label: "View All Tickets" },
-  { key: "viewOwn", label: "View Own Tickets" },
-  { key: "assign", label: "Assign Tickets" },
-  { key: "updateStatus", label: "Update Ticket Status" },
-  { key: "close", label: "Close Tickets" },
-  { key: "delete", label: "Delete Tickets", note: "Superadmin only" },
+const TICKET_LABELS: { key: keyof Permissions["tickets"]; labelKey: string; noteKey?: string }[] = [
+  { key: "create", labelKey: "rolesPerms.perm.create" },
+  { key: "viewAll", labelKey: "rolesPerms.perm.viewAll" },
+  { key: "viewOwn", labelKey: "rolesPerms.perm.viewOwn" },
+  { key: "assign", labelKey: "rolesPerms.perm.assign" },
+  { key: "updateStatus", labelKey: "rolesPerms.perm.updateStatus" },
+  { key: "close", labelKey: "rolesPerms.perm.close" },
+  { key: "delete", labelKey: "rolesPerms.perm.delete", noteKey: "rolesPerms.perm.deleteNote" },
 ];
 
 interface FormState {
@@ -86,6 +88,7 @@ interface FormState {
 }
 
 export function RolesPermissionsTab() {
+  const { t } = useTranslation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [formOpen, setFormOpen] = useState(false);
@@ -172,11 +175,11 @@ export function RolesPermissionsTab() {
         if (!old) return [saved];
         return vars.id ? old.map((r) => (r.id === saved.id ? saved : r)) : [...old, saved];
       });
-      toast({ title: vars.id ? "Role updated successfully" : "Role created successfully" });
+      toast({ title: vars.id ? t("messages.roleUpdated") : t("messages.roleCreated") });
       setFormOpen(false);
       setEditing(null);
     },
-    onError: (e: Error) => toast({ title: "Save failed", description: e.message, variant: "destructive" }),
+    onError: (e: Error) => toast({ title: t("messages.saveFailed"), description: e.message, variant: "destructive" }),
   });
 
   const deleteMutation = useMutation({
@@ -191,10 +194,10 @@ export function RolesPermissionsTab() {
       queryClient.setQueryData<RoleRow[]>(["roles-permissions"], (old) => old?.filter((r) => r.id !== id) ?? []);
       return { prev };
     },
-    onSuccess: () => { toast({ title: "Role deleted" }); setDeletingRole(null); },
+    onSuccess: () => { toast({ title: t("messages.roleDeleted") }); setDeletingRole(null); },
     onError: (e: Error, _id, ctx) => {
       queryClient.setQueryData(["roles-permissions"], ctx?.prev);
-      toast({ title: "Delete failed", description: e.message, variant: "destructive" });
+      toast({ title: t("messages.deleteFailed"), description: e.message, variant: "destructive" });
     },
   });
 
@@ -239,21 +242,21 @@ export function RolesPermissionsTab() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
-          <CardTitle className="flex items-center gap-2"><Shield className="h-4 w-4" /> Roles & Permissions</CardTitle>
-          <p className="text-sm text-muted-foreground mt-1">Define what each role can see and do across the app.</p>
+          <CardTitle className="flex items-center gap-2"><Shield className="h-4 w-4" /> {t("rolesPerms.title")}</CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">{t("rolesPerms.subtitle")}</p>
         </div>
         <Button size="sm" onClick={openCreate}>
-          <PlusCircle className="h-4 w-4 mr-2" /> Create New Role
+          <PlusCircle className="h-4 w-4 mr-2" /> {t("rolesPerms.createNewRole")}
         </Button>
       </CardHeader>
       <CardContent className="space-y-6">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Role Name</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead>Permissions Summary</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>{t("rolesPerms.roleName")}</TableHead>
+              <TableHead>{t("rolesPerms.description")}</TableHead>
+              <TableHead>{t("rolesPerms.permissionsSummary")}</TableHead>
+              <TableHead className="text-right">{t("rolesPerms.actions")}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -269,7 +272,7 @@ export function RolesPermissionsTab() {
             {!isLoading && roles?.length === 0 && (
               <TableRow>
                 <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                  No roles found. Create your first role.
+                  {t("rolesPerms.noRoles")}
                 </TableCell>
               </TableRow>
             )}
@@ -283,10 +286,10 @@ export function RolesPermissionsTab() {
                   <TableCell className="text-sm text-muted-foreground max-w-xs truncate">{r.description ?? "—"}</TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1.5">
-                      {summaryChip("Create", r.permissions?.tickets?.create)}
-                      {summaryChip("Assign", r.permissions?.tickets?.assign)}
-                      {summaryChip("View All", r.permissions?.tickets?.viewAll)}
-                      {summaryChip("Delete", r.permissions?.tickets?.delete)}
+                      {summaryChip(t("rolesPerms.perm.chipCreate"), r.permissions?.tickets?.create)}
+                      {summaryChip(t("rolesPerms.perm.chipAssign"), r.permissions?.tickets?.assign)}
+                      {summaryChip(t("rolesPerms.perm.chipViewAll"), r.permissions?.tickets?.viewAll)}
+                      {summaryChip(t("rolesPerms.perm.chipDelete"), r.permissions?.tickets?.delete)}
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
@@ -299,7 +302,7 @@ export function RolesPermissionsTab() {
                       className="h-8 w-8 text-destructive disabled:opacity-30"
                       onClick={() => setDeletingRole(r)}
                       disabled={isSuper}
-                      title={isSuper ? "Super Admin role cannot be deleted" : "Delete role"}
+                      title={isSuper ? t("rolesPerms.superAdminNoDelete") : t("rolesPerms.deleteRoleTooltip")}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
@@ -313,7 +316,7 @@ export function RolesPermissionsTab() {
         {formOpen && (
           <Card className="border-primary/30">
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base">{editing ? "Edit Role" : "Create New Role"}</CardTitle>
+              <CardTitle className="text-base">{editing ? t("rolesPerms.editRole") : t("rolesPerms.createNewRole")}</CardTitle>
               <Button variant="ghost" size="icon" onClick={() => { setFormOpen(false); setEditing(null); }}>
                 <X className="h-4 w-4" />
               </Button>
@@ -321,23 +324,23 @@ export function RolesPermissionsTab() {
             <CardContent className="space-y-6">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Role Name *</Label>
+                  <Label>{t("rolesPerms.roleName")} *</Label>
                   <Input
                     type="text"
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value as AppRole })}
                     disabled={!!editing}
-                    placeholder="Enter role name"
+                    placeholder={t("rolesPerms.roleNamePlaceholder")}
                   />
-                  {editing && <p className="text-xs text-muted-foreground">Role name cannot be changed after creation.</p>}
+                  {editing && <p className="text-xs text-muted-foreground">{t("rolesPerms.roleNameLocked")}</p>}
                 </div>
                 <div className="space-y-2">
-                  <Label>Description</Label>
+                  <Label>{t("rolesPerms.description")}</Label>
                   <Textarea
                     rows={2}
                     value={form.description}
                     onChange={(e) => setForm({ ...form, description: e.target.value })}
-                    placeholder="What this role is for"
+                    placeholder={t("rolesPerms.descriptionPlaceholder")}
                   />
                 </div>
               </div>
@@ -345,16 +348,16 @@ export function RolesPermissionsTab() {
               <div className="grid gap-6 md:grid-cols-2">
                 {/* A. Ticket Permissions */}
                 <div className="border rounded-lg p-4 space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider border-b pb-2">A. Ticket Permissions</h4>
-                  {TICKET_LABELS.map((t) => (
-                    <div key={t.key} className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold uppercase tracking-wider border-b pb-2">{t("rolesPerms.ticketPermissions")}</h4>
+                  {TICKET_LABELS.map((item) => (
+                    <div key={item.key} className="flex items-center justify-between">
                       <Label className="font-normal text-sm">
-                        {t.label}
-                        {t.note && <span className="ml-2 text-xs text-muted-foreground">({t.note})</span>}
+                        {t(item.labelKey)}
+                        {item.noteKey && <span className="ml-2 text-xs text-muted-foreground">({t(item.noteKey)})</span>}
                       </Label>
                       <Switch
-                        checked={form.permissions.tickets[t.key]}
-                        onCheckedChange={(v) => updateTicket(t.key, v)}
+                        checked={form.permissions.tickets[item.key]}
+                        onCheckedChange={(v) => updateTicket(item.key, v)}
                       />
                     </div>
                   ))}
@@ -362,30 +365,30 @@ export function RolesPermissionsTab() {
 
                 {/* B. Dashboard */}
                 <div className="border rounded-lg p-4 space-y-3">
-                  <h4 className="text-xs font-bold uppercase tracking-wider border-b pb-2">B. Dashboard Access</h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider border-b pb-2">{t("rolesPerms.dashboardAccess")}</h4>
                   <div className="flex items-center justify-between">
-                    <Label className="font-normal text-sm">View Dashboard</Label>
+                    <Label className="font-normal text-sm">{t("rolesPerms.viewDashboard")}</Label>
                     <Switch
                       checked={form.permissions.dashboard.view}
                       onCheckedChange={(v) => setForm((f) => ({ ...f, permissions: { ...f.permissions, dashboard: { ...f.permissions.dashboard, view: v } } }))}
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Data Scope</Label>
+                    <Label className="text-xs text-muted-foreground">{t("rolesPerms.dataScope")}</Label>
                     <RadioGroup
                       value={form.permissions.dashboard.scope}
                       onValueChange={(v) => setForm((f) => ({ ...f, permissions: { ...f.permissions, dashboard: { ...f.permissions.dashboard, scope: v as any } } }))}
                     >
-                      <div className="flex items-center gap-2"><RadioGroupItem value="all" id="ds-all" /><Label htmlFor="ds-all" className="font-normal">All Departments</Label></div>
-                      <div className="flex items-center gap-2"><RadioGroupItem value="department" id="ds-dept" /><Label htmlFor="ds-dept" className="font-normal">Own Department only</Label></div>
-                      <div className="flex items-center gap-2"><RadioGroupItem value="own" id="ds-own" /><Label htmlFor="ds-own" className="font-normal">Own data only</Label></div>
+                      <div className="flex items-center gap-2"><RadioGroupItem value="all" id="ds-all" /><Label htmlFor="ds-all" className="font-normal">{t("rolesPerms.scopeAll")}</Label></div>
+                      <div className="flex items-center gap-2"><RadioGroupItem value="department" id="ds-dept" /><Label htmlFor="ds-dept" className="font-normal">{t("rolesPerms.scopeDepartment")}</Label></div>
+                      <div className="flex items-center gap-2"><RadioGroupItem value="own" id="ds-own" /><Label htmlFor="ds-own" className="font-normal">{t("rolesPerms.scopeOwn")}</Label></div>
                     </RadioGroup>
                   </div>
                 </div>
 
                 {/* C. Sidebar */}
                 <div className="border rounded-lg p-4 space-y-3 md:col-span-2">
-                  <h4 className="text-xs font-bold uppercase tracking-wider border-b pb-2">C. Sidebar Module Access</h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider border-b pb-2">{t("rolesPerms.sidebarAccess")}</h4>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     {SIDEBAR_LABELS.map((s) => (
                       <div key={s.key} className="flex items-center gap-2">
@@ -398,7 +401,7 @@ export function RolesPermissionsTab() {
                           {s.icon === "bot" && <Bot className="h-3.5 w-3.5 text-primary" />}
                           {s.icon === "play" && <PlayCircle className="h-3.5 w-3.5 text-primary" />}
 
-                          {s.label}
+                          {t(s.labelKey)}
                         </Label>
                       </div>
                     ))}
@@ -407,26 +410,26 @@ export function RolesPermissionsTab() {
 
                 {/* D. Department restriction */}
                 <div className="border rounded-lg p-4 space-y-3 md:col-span-2">
-                  <h4 className="text-xs font-bold uppercase tracking-wider border-b pb-2">D. Department Data Restriction</h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider border-b pb-2">{t("rolesPerms.departmentRestriction")}</h4>
                   <RadioGroup
                     value={form.permissions.department}
                     onValueChange={(v) => setForm((f) => ({ ...f, permissions: { ...f.permissions, department: v as any } }))}
                   >
-                    <div className="flex items-center gap-2"><RadioGroupItem value="all" id="dep-all" /><Label htmlFor="dep-all" className="font-normal">Access all departments</Label></div>
-                    <div className="flex items-center gap-2"><RadioGroupItem value="own" id="dep-own" /><Label htmlFor="dep-own" className="font-normal">Access own department data only</Label></div>
+                    <div className="flex items-center gap-2"><RadioGroupItem value="all" id="dep-all" /><Label htmlFor="dep-all" className="font-normal">{t("rolesPerms.accessAllDepartments")}</Label></div>
+                    <div className="flex items-center gap-2"><RadioGroupItem value="own" id="dep-own" /><Label htmlFor="dep-own" className="font-normal">{t("rolesPerms.accessOwnDepartment")}</Label></div>
                   </RadioGroup>
                 </div>
 
                 {/* E. Plant / Unit Access Control */}
                 <div className="border rounded-lg p-4 space-y-3 md:col-span-2">
-                  <h4 className="text-xs font-bold uppercase tracking-wider border-b pb-2">E. Plant / Unit Access Control</h4>
+                  <h4 className="text-xs font-bold uppercase tracking-wider border-b pb-2">{t("rolesPerms.plantAccessControl")}</h4>
 
                   {/* Own Plant Only toggle */}
                   <div className="flex items-start justify-between gap-4 py-2 px-2 rounded border bg-muted/20">
                     <div className="space-y-1">
-                      <Label className="font-normal text-sm">Own Plant Only</Label>
+                      <Label className="font-normal text-sm">{t("rolesPerms.ownPlantOnly")}</Label>
                       <p className="text-xs text-muted-foreground">
-                        When enabled, users with this role can only see data from their own assigned plant — regardless of which plant toggles are turned ON below.
+                        {t("rolesPerms.ownPlantOnlyHelp")}
                       </p>
                     </div>
                     <Switch
@@ -437,19 +440,19 @@ export function RolesPermissionsTab() {
 
                   {ownPlantOnly && (
                     <div className="rounded border border-amber-400/50 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
-                      ⚠️ Individual plant toggles are overridden. Users will only see their own assigned plant's data.
+                      ⚠️ {t("rolesPerms.ownPlantOnlyWarning")}
                     </div>
                   )}
 
                   <p className="text-xs text-muted-foreground">
-                    Toggle ON the plants whose data this role can access. Toggle OFF to hide that plant's data completely for this role.
+                    {t("rolesPerms.plantToggleHelp")}
                   </p>
                   <div
                     className="space-y-2 pt-1"
                     style={ownPlantOnly ? { opacity: 0.4, pointerEvents: "none" } : undefined}
                   >
                     {(units || []).length === 0 && (
-                      <p className="text-sm text-muted-foreground">No units found. Add units in the Units tab first.</p>
+                      <p className="text-sm text-muted-foreground">{t("rolesPerms.noUnits")}</p>
                     )}
                     {(units || []).map((u: any) => {
                       const on = !!plantAccess[u.name];
@@ -468,7 +471,7 @@ export function RolesPermissionsTab() {
                               ? "border-success text-success bg-success/10"
                               : "border-destructive/40 text-destructive bg-destructive/10"}
                           >
-                            {on ? "Active" : "No Access"}
+                            {on ? t("rolesPerms.active") : t("rolesPerms.noAccess")}
                           </Badge>
                         </div>
                       );
@@ -478,9 +481,9 @@ export function RolesPermissionsTab() {
               </div>
 
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => { setFormOpen(false); setEditing(null); }}>Cancel</Button>
+                <Button variant="outline" onClick={() => { setFormOpen(false); setEditing(null); }}>{t("common.cancel")}</Button>
                 <Button onClick={handleSave} disabled={upsertMutation.isPending}>
-                  <Save className="h-4 w-4 mr-2" /> {editing ? "Update Role" : "Save Role"}
+                  <Save className="h-4 w-4 mr-2" /> {editing ? t("rolesPerms.updateRole") : t("rolesPerms.saveRole")}
                 </Button>
               </div>
             </CardContent>
@@ -491,18 +494,18 @@ export function RolesPermissionsTab() {
       <AlertDialog open={!!deletingRole} onOpenChange={(o) => !o && setDeletingRole(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this role?</AlertDialogTitle>
+            <AlertDialogTitle>{t("rolesPerms.deleteRoleTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Users assigned to <strong>{deletingRole?.name}</strong> will lose their permissions until reassigned.
+              {t("rolesPerms.deleteRoleDesc", { role: deletingRole?.name ?? "" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => deletingRole && deleteMutation.mutate(deletingRole.id)}
             >
-              Delete
+              {t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

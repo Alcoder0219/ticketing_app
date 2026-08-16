@@ -6,6 +6,12 @@ import { resolveRelationship } from '../models/relationships.js';
 import { parseSelect, projectColumns, type EmbedSpec } from './selectParser.js';
 import { clauseToMongo, parseOrString, toMongoField, type FilterClause } from './filters.js';
 import { emitChange } from '../realtime/io.js';
+import {
+  notifyTicketRaised,
+  notifyTicketUpdated,
+  notifyRatingSubmitted,
+  verifyRatingToken,
+} from '../notifications/service.js';
 
 export const restRouter = Router();
 
@@ -26,6 +32,8 @@ interface QueryBody {
   values?: Record<string, any> | Record<string, any>[];
   onConflict?: string;
   returning?: boolean;
+  /** Signed token from a "Rate This Ticket" email link. */
+  ratingToken?: string;
 }
 
 /** Build the combined Mongo filter from explicit clauses + an optional or-string. */
@@ -44,6 +52,52 @@ function authFilterFor(table: string, ctx: AuthContext): Record<string, any> {
   // Other tables: authenticated access (granular per-table policies can be
   // layered here as additional cases — see authz.ts).
   return {};
+}
+
+/**
+ * Ticket notifications are dispatched from here rather than from each caller.
+ *
+ * Every ticket write in this app goes through the generic query router — there
+ * are no ticket controllers — so this is the one place that sees all of them.
+ * Hooking here means no ticket business logic changes, and a client cannot skip
+ * a notification by calling the API directly.
+ *
+ * Fire-and-forget by design: the response is never delayed by an email, and a
+ * notification failure can never turn a successful write into an error.
+ */
+function fireAndForget(label: string, run: () => Promise<void>) {
+  void run().catch((err) => console.error(`[notify] ${label} dispatch failed:`, err?.message ?? err));
+}
+
+/**
+ * A rating may only be submitted by the ticket's requester, for their own
+ * ticket. Accepts either an authenticated requester or a valid signed link
+ * token; both resolve to the same user id.
+ */
+function ratingInsertDenied(
+  values: Record<string, any>,
+  ticket: Record<string, any> | null,
+  ctx: AuthContext,
+  ratingToken?: string,
+): string | null {
+  if (!ticket) return 'Ticket not found';
+
+  let authorisedUser = ctx.userId;
+  if (ratingToken) {
+    const decoded = verifyRatingToken(ratingToken, String(ticket._id));
+    if (!decoded) return 'Invalid or expired rating link';
+    authorisedUser = decoded.sub;
+  }
+
+  // The rating must be attributed to the caller, not to someone else.
+  if (values.rated_by && values.rated_by !== authorisedUser) {
+    return 'A rating cannot be submitted on behalf of another user';
+  }
+  // Only the person who raised the ticket may rate it.
+  if (ticket.raised_by !== authorisedUser) {
+    return 'Only the requester can rate this ticket';
+  }
+  return null;
 }
 
 function mergeFilters(a: Record<string, any>, b: Record<string, any>): Record<string, any> {
@@ -152,8 +206,31 @@ restRouter.post('/query', requireAuth, async (req, res) => {
     // ── INSERT ────────────────────────────────────────────────────────────
     if (body.action === 'insert') {
       const input = Array.isArray(body.values) ? body.values : [body.values ?? {}];
+
+      // Ratings are authorisation-sensitive: validate BEFORE writing anything.
+      if (body.table === 'ticket_ratings') {
+        for (const value of input) {
+          const ticket = await models.tickets.findOne({ _id: value.ticket_id }).lean();
+          const denied = ratingInsertDenied(value, ticket as any, ctx, body.ratingToken);
+          if (denied) return res.json({ data: null, error: { message: denied } });
+        }
+      }
+
       const created = await model.insertMany(input.map(stripId), { rawResult: false });
       created.forEach((d) => emitChange(body.table, 'INSERT', d.toJSON()));
+
+      // ── Notifications: only after the write has succeeded ────────────────
+      if (body.table === 'tickets') {
+        for (const doc of created) {
+          const row = doc.toJSON();
+          fireAndForget('TICKET_RAISED', () => notifyTicketRaised({ ...row, _id: row.id }));
+        }
+      } else if (body.table === 'ticket_ratings') {
+        for (const doc of created) {
+          const row = doc.toJSON();
+          fireAndForget('RATING_SUBMITTED', () => notifyRatingSubmitted({ ...row, _id: row.id }));
+        }
+      }
       if (!body.returning) return res.json({ data: null, error: null });
       const rows = created.map((d) => d.toJSON());
       return res.json({
@@ -165,11 +242,25 @@ restRouter.post('/query', requireAuth, async (req, res) => {
     // ── UPDATE ────────────────────────────────────────────────────────────
     if (body.action === 'update') {
       const values = stripId(body.values as Record<string, any>);
-      const toUpdate = await model.find(userFilter);
+      // The visibility rules are a write guard too: a caller may only modify
+      // rows they are allowed to read, so a crafted filter cannot reach a
+      // ticket in an unauthorised plant/department.
+      const updateFilter = mergeFilters(userFilter, authFilterFor(body.table, ctx));
+      const toUpdate = await model.find(updateFilter);
+      const isTicket = body.table === 'tickets';
       for (const doc of toUpdate) {
+        // Snapshot before mutating so the notifier can tell what actually
+        // changed — an assignment mail must not fire when only a remark moved.
+        const before = isTicket ? doc.toObject() : null;
         doc.set(values);
         await doc.save();
-        emitChange(body.table, 'UPDATE', doc.toJSON());
+        const after = doc.toJSON();
+        emitChange(body.table, 'UPDATE', after);
+        if (isTicket && before) {
+          fireAndForget('ticket update', () =>
+            notifyTicketUpdated(before, { ...after, _id: after.id }, ctx.userId),
+          );
+        }
       }
       if (!body.returning) return res.json({ data: null, error: null });
       const rows = toUpdate.map((d) => d.toJSON());
@@ -181,9 +272,10 @@ restRouter.post('/query', requireAuth, async (req, res) => {
 
     // ── DELETE ────────────────────────────────────────────────────────────
     if (body.action === 'delete') {
-      const toDelete = await model.find(userFilter);
+      const deleteFilter = mergeFilters(userFilter, authFilterFor(body.table, ctx));
+      const toDelete = await model.find(deleteFilter);
       const rows = toDelete.map((d) => d.toJSON());
-      await model.deleteMany(userFilter);
+      await model.deleteMany(deleteFilter);
       rows.forEach((r) => emitChange(body.table, 'DELETE', r));
       if (!body.returning) return res.json({ data: null, error: null });
       return res.json({ data: body.single ? (rows[0] ?? null) : rows, error: null });
@@ -192,18 +284,43 @@ restRouter.post('/query', requireAuth, async (req, res) => {
     // ── UPSERT ────────────────────────────────────────────────────────────
     if (body.action === 'upsert') {
       const input = Array.isArray(body.values) ? body.values : [body.values ?? {}];
-      const conflictKey = body.onConflict ?? 'id';
+      // PostgREST allows a composite conflict target ("role_name,unit_name").
+      // Every column has to take part in the match — matching on only the first
+      // one (or on none at all) would make separate rows collide.
+      const conflictCols = (body.onConflict ?? 'id')
+        .split(',')
+        .map((c) => c.trim())
+        .filter(Boolean);
       const out: any[] = [];
       for (const raw of input) {
         const value = { ...raw };
-        const keyField = toMongoField(conflictKey);
-        const keyVal = conflictKey === 'id' ? value.id : value[conflictKey];
-        const query =
-          keyVal != null ? { [keyField]: keyVal } : { _id: '__never__' };
+        const query: Record<string, any> = {};
+        let matchable = conflictCols.length > 0;
+        for (const col of conflictCols) {
+          const colVal = col === 'id' ? value.id : value[col];
+          if (colVal == null) {
+            matchable = false;
+            break;
+          }
+          query[toMongoField(col)] = colVal;
+        }
         delete value.id;
+
+        // No usable conflict target on this row: treat it as a plain insert
+        // rather than folding every such row onto one shared document.
+        if (!matchable) {
+          const [created] = await model.insertMany([stripId(raw)]);
+          out.push(created.toJSON());
+          emitChange(body.table, 'INSERT', created.toJSON());
+          continue;
+        }
+
+        // No $setOnInsert: the conflict columns are already in `value`, and on an
+        // upsert Mongo seeds the new document from the query's equality terms —
+        // writing them twice is rejected as a conflicting update path.
         const doc = await model.findOneAndUpdate(
-          query,
-          { $set: value, $setOnInsert: keyVal != null ? { [keyField]: keyVal } : {} },
+          mergeFilters(query, authFilterFor(body.table, ctx)),
+          { $set: value },
           { new: true, upsert: true, setDefaultsOnInsert: true },
         );
         if (doc) {

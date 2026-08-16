@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,6 +74,7 @@ function isNew(iso: string) {
 }
 
 export default function Tutorials() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { isSuperAdmin } = usePermissions();
   const qc = useQueryClient();
@@ -163,11 +165,11 @@ export default function Tutorials() {
   });
 
   return (
-    <AppLayout title="Tutorial Videos">
+    <AppLayout title={t("tutorials.title")}>
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold tracking-tight">Tutorial Videos</h1>
-          <p className="text-muted-foreground">Learn how to use the Ticketing Support Portal</p>
+          <h1 className="text-3xl font-bold tracking-tight">{t("tutorials.title")}</h1>
+          <p className="text-muted-foreground">{t("tutorials.subtitle")}</p>
           <p className="text-sm text-muted-foreground">{videos.filter(v => v.is_published || isSuperAdmin).length} videos available</p>
         </div>
 
@@ -188,7 +190,7 @@ export default function Tutorials() {
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search tutorials..."
+            placeholder={t("tutorials.searchTutorials")}
             className="pl-9"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -262,13 +264,13 @@ export default function Tutorials() {
       <AlertDialog open={!!deleting} onOpenChange={(o) => !o && setDeleting(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this video?</AlertDialogTitle>
+            <AlertDialogTitle>{t("tutorials.deleteVideo")}</AlertDialogTitle>
             <AlertDialogDescription>
               "{deleting?.title}" will be permanently removed along with its files. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => deleting && deleteVideo.mutate(deleting)}
@@ -294,6 +296,7 @@ function VideoCard({
   onMoveDown: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useTranslation();
   const duration = formatDuration(video.duration_seconds);
   return (
     <Card className="overflow-hidden group hover:shadow-lg transition-shadow">
@@ -318,7 +321,7 @@ function VideoCard({
         )}
         {isSuperAdmin && !video.is_published && (
           <div className="absolute inset-0 bg-zinc-900/70 flex items-center justify-center pointer-events-none">
-            <Badge variant="secondary" className="text-sm">Unpublished</Badge>
+            <Badge variant="secondary" className="text-sm">{t("tutorials.unpublished")}</Badge>
           </div>
         )}
         {isSuperAdmin && (
@@ -569,7 +572,7 @@ function UploadVideoModal({
                     ? "Click to replace current video (optional)"
                     : "Click to select or drag and drop video here"}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">MP4, WEBM, MOV — max 500MB</p>
+              <p className="text-xs text-muted-foreground mt-1">MP4, WEBM, MOV â€” max 500MB</p>
               <input
                 type="file"
                 accept="video/mp4,video/webm,video/quicktime"
@@ -588,7 +591,7 @@ function UploadVideoModal({
           <div className="space-y-2">
             <Label>Thumbnail Image (optional)</Label>
             <label className="block border border-dashed rounded-lg p-3 text-center cursor-pointer hover:border-primary/50 transition-colors text-sm">
-              {thumbFile ? thumbFile.name : "Upload thumbnail image (JPG, PNG — 16:9 recommended)"}
+              {thumbFile ? thumbFile.name : "Upload thumbnail image (JPG, PNG â€” 16:9 recommended)"}
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp"

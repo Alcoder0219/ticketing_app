@@ -1,3 +1,12 @@
+# Google credentials (never commit service-account keys)
+*service-account*.json
+*serviceaccount*.json
+gcp-*.json
+*-key.json
+credentials.json
+client_secret*.json
+secrets/
+
 # Logs
 logs
 *.log

@@ -1,4 +1,5 @@
-import { useState } from "react";
+﻿import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -36,8 +37,9 @@ const statusTabs = [
 ];
 
 export default function DepartmentTickets() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user, profile, role } = useAuth();
+  const { user, profile, role, allowedUnitNames } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -61,10 +63,13 @@ export default function DepartmentTickets() {
     },
   });
 
+  // Only offer plants this role may actually read, matching the other pages.
   const { data: units } = useQuery({
-    queryKey: ["units-all"],
+    queryKey: ["filter-units", allowedUnitNames?.join(",") ?? "all"],
     queryFn: async () => {
-      const { data } = await supabase.from("units").select("id, name").order("name");
+      let q = supabase.from("units").select("id, name").order("name");
+      if (allowedUnitNames) q = q.in("name", allowedUnitNames.length ? allowedUnitNames : ["__none__"]);
+      const { data } = await q;
       return data || [];
     },
   });
@@ -178,21 +183,21 @@ export default function DepartmentTickets() {
   };
 
   return (
-    <AppLayout title="Department Tickets">
+    <AppLayout title={t("nav.departmentTickets")}>
       <div className="flex gap-6 w-full min-w-0 overflow-x-hidden">
         {/* Department tree sidebar */}
         {isSuperOrAdmin && (
           <div className="w-56 shrink-0 hidden lg:block">
             <Card className="border shadow-sm sticky top-4">
               <CardHeader className="pb-2">
-                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Departments</CardTitle>
+                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("common.department")}</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
                 <button
                   className={`w-full text-left px-4 py-2 text-sm flex items-center justify-between hover:bg-muted/50 transition-colors ${selectedDept === "all" ? "border-l-2 border-primary bg-primary/5 font-medium" : ""}`}
                   onClick={() => setSelectedDept("all")}
                 >
-                  <span>All Departments</span>
+                  <span>{t("common.allDepartments")}</span>
                   <Badge variant="secondary" className="text-xs">{allTickets.length}</Badge>
                 </button>
                 {departments?.map(d => (
@@ -215,14 +220,14 @@ export default function DepartmentTickets() {
           <div className="flex flex-wrap gap-2 items-center w-full">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search tickets..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <Input placeholder={t("ticket.searchTickets")} className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <Select value={unitFilter} onValueChange={setUnitFilter}>
               <SelectTrigger className="w-40">
-                <SelectValue placeholder="Unit" />
+                <SelectValue placeholder={t("common.unit")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Units</SelectItem>
+                <SelectItem value="all">{t("common.allUnits")}</SelectItem>
                 {units?.map((u) => (
                   <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
                 ))}
@@ -230,11 +235,11 @@ export default function DepartmentTickets() {
             </Select>
             <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
               <SelectTrigger className="w-48">
-                <SelectValue placeholder="Assignee" />
+                <SelectValue placeholder={t("common.assignedPerson")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Assignees</SelectItem>
-                <SelectItem value="unassigned">Unassigned</SelectItem>
+                <SelectItem value="all">{t("common.allAssignees")}</SelectItem>
+                <SelectItem value="unassigned">{t("ticket.unassigned")}</SelectItem>
                 {assigneeOptions.map(([id, name]) => (
                   <SelectItem key={id} value={id}>{name}</SelectItem>
                 ))}
@@ -242,11 +247,11 @@ export default function DepartmentTickets() {
             </Select>
             <Select value={agingFilter} onValueChange={(v) => setAgingFilter(v as AgingFilterValue)}>
               <SelectTrigger className="w-44">
-                <SelectValue placeholder="Aging" />
+                <SelectValue placeholder={t("aging.label")} />
               </SelectTrigger>
               <SelectContent>
                 {AGING_FILTER_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  <SelectItem key={o.value} value={o.value}>{t(`aging.filter.${o.value}`, { defaultValue: o.label })}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -289,8 +294,8 @@ export default function DepartmentTickets() {
                             </div>
                             <h3 className="text-sm font-medium text-foreground truncate">{ticket.title}</h3>
                             <div className="flex items-center gap-x-4 gap-y-1 mt-1.5 text-xs text-muted-foreground flex-wrap min-w-0">
-                              <span className="truncate">From: {(ticket as any).raiser?.name || "—"}</span>
-                              <span className="truncate">Dept: {(ticket as any).issue_dept?.name || "—"}</span>
+                              <span className="truncate">From: {(ticket as any).raiser?.name || "â€”"}</span>
+                              <span className="truncate">Dept: {(ticket as any).issue_dept?.name || "â€”"}</span>
                               {(ticket as any).assignee?.name && <span className="truncate">Assigned: {(ticket as any).assignee.name}</span>}
                               <span className="flex items-center gap-1">
                                 Aging:{" "}
@@ -310,7 +315,7 @@ export default function DepartmentTickets() {
                               <button
                                 onClick={(e) => { e.stopPropagation(); deleteTicket(ticket.id); }}
                                 className="text-destructive hover:bg-destructive/10 rounded p-1.5"
-                                title="Delete ticket"
+                                title={t("ticket.deleteTicket")}
                                 aria-label="Delete ticket"
                               >
                                 <Trash2 className="h-4 w-4" />
@@ -324,7 +329,7 @@ export default function DepartmentTickets() {
                                   </Button>
                                 </PopoverTrigger>
                                 <PopoverContent className="w-56 p-2">
-                                  <p className="text-xs font-medium mb-2 text-muted-foreground">Assign to team member</p>
+                                  <p className="text-xs font-medium mb-2 text-muted-foreground">{t("ticket.assignToTeamMember")}</p>
                                   {teamMembers?.map(m => (
                                     <button
                                       key={m.user_id}

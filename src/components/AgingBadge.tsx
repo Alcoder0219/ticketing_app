@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { calculateAgingDays, formatAgingLabel, agingColorClass, getTicketEndDate, isTicketClosed } from "@/lib/aging";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,7 @@ interface AgingBadgeProps {
  * For resolved/closed tickets, shows a fixed gray value.
  */
 export function AgingBadge({ createdAt, status, resolvedAt, closedAt, className, withLabel = false }: AgingBadgeProps) {
+  const { t } = useTranslation();
   const closed = isTicketClosed(status);
   const endDate = getTicketEndDate({ status, resolved_at: resolvedAt, closed_at: closedAt });
   const [, force] = useState(0);
@@ -31,7 +33,7 @@ export function AgingBadge({ createdAt, status, resolvedAt, closedAt, className,
 
   return (
     <span className={cn(color, className)}>
-      {withLabel ? "Aging: " : ""}{formatAgingLabel(days)}
+      {withLabel ? `${t("aging.label")}: ` : ""}{t("aging.days", { count: days, defaultValue: formatAgingLabel(days) })}
     </span>
   );
 }

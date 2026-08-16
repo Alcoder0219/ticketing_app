@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -66,12 +67,12 @@ const StatusBadge = ({ status }: { status: StatusKey }) => {
 };
 
 const Stars = ({ rating }: { rating: number | null }) => {
-  if (!rating) return <span className="text-muted-foreground">—</span>;
+  if (!rating) return <span className="text-muted-foreground">â€”</span>;
   const r = Math.round(rating);
   return (
     <span className="text-yellow-500 text-[13px]">
-      {"★".repeat(r)}
-      <span className="text-gray-300">{"☆".repeat(5 - r)}</span>
+      {"â˜…".repeat(r)}
+      <span className="text-gray-300">{"â˜†".repeat(5 - r)}</span>
     </span>
   );
 };
@@ -144,6 +145,7 @@ interface ResolvedRow {
 }
 
 export default function Reports() {
+  const { t } = useTranslation();
   const { user, allowedUnitNames } = useAuth();
 
   // ---- Filters ----
@@ -219,12 +221,12 @@ export default function Reports() {
       .map((t: any) => ({
         id: t.id,
         ticket_number: t.ticket_number,
-        unit: t.unit?.name || "—",
-        department: t.dept?.name || "—",
+        unit: t.unit?.name || "â€”",
+        department: t.dept?.name || "â€”",
         issue_date: t.created_at,
         issue_date_label: formatDateShort(t.created_at),
         issues: t.title || "",
-        raised_by: t.raiser?.name || "—",
+        raised_by: t.raiser?.name || "â€”",
         status: displayStatus(t.status),
         aging: differenceInCalendarDays(today, new Date(t.created_at)),
       }));
@@ -239,14 +241,14 @@ export default function Reports() {
         return {
           id: t.id,
           ticket_number: t.ticket_number,
-          unit: t.unit?.name || "—",
-          department: t.dept?.name || "—",
+          unit: t.unit?.name || "â€”",
+          department: t.dept?.name || "â€”",
           resolved_date: resolvedAt,
           resolved_date_label: formatDate(resolvedAt),
           aging: differenceInCalendarDays(new Date(resolvedAt), new Date(t.created_at)),
-          technician: t.assignee?.name || "—",
-          resolved_by: t.closer?.name || t.assignee?.name || "—",
-          raised_by: t.raiser?.name || "—",
+          technician: t.assignee?.name || "â€”",
+          resolved_by: t.closer?.name || t.assignee?.name || "â€”",
+          raised_by: t.raiser?.name || "â€”",
           rating: ratingRow?.rating ?? null,
           rating_remarks: ratingRow?.feedback || "",
         };
@@ -327,7 +329,7 @@ export default function Reports() {
     : `Unit: ${unitFilter!.length} selected`;
 
   return (
-    <AppLayout title="Summary Dashboard">
+    <AppLayout title={t("reports.title")}>
       <div className="space-y-4">
         {/* Filter bar */}
         <div className="flex flex-wrap items-center gap-3 p-3 bg-card border rounded-lg shadow-sm">
@@ -340,7 +342,7 @@ export default function Reports() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-56 bg-popover">
-              <DropdownMenuLabel>Units</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("reports.units")}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuCheckboxItem
                 checked={allUnitsSelected}
@@ -371,10 +373,10 @@ export default function Reports() {
           {/* Department */}
           <Select value={deptFilter} onValueChange={setDeptFilter}>
             <SelectTrigger className="w-[200px] h-9">
-              <SelectValue placeholder="Department" />
+              <SelectValue placeholder={t("common.department")} />
             </SelectTrigger>
             <SelectContent className="bg-popover">
-              <SelectItem value="all">All Departments</SelectItem>
+              <SelectItem value="all">{t("common.allDepartments")}</SelectItem>
               {departments.map(d => (
                 <SelectItem key={d.id} value={d.name}>{d.name}</SelectItem>
               ))}
@@ -386,7 +388,7 @@ export default function Reports() {
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="h-9">
                 <CalendarIcon className="h-4 w-4 mr-2" />
-                {format(dateRange.from, "dd-MM-yyyy")} – {format(dateRange.to, "dd-MM-yyyy")}
+                {format(dateRange.from, "dd-MM-yyyy")} â€“ {format(dateRange.to, "dd-MM-yyyy")}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0 bg-popover" align="start">
@@ -412,7 +414,7 @@ export default function Reports() {
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {/* LEFT: Pending / In-Progress */}
           <TableCard
-            title="Total Tickets Pending / In-Progress"
+            title={t("reports.totalPendingInProgress")}
             search={pendingSearch}
             onSearch={setPendingSearch}
             isLoading={isLoading}
@@ -465,7 +467,7 @@ export default function Reports() {
 
           {/* RIGHT: Resolved */}
           <TableCard
-            title="Total Tickets Resolved"
+            title={t("reports.totalResolved")}
             search={resolvedSearch}
             onSearch={setResolvedSearch}
             isLoading={isLoading}
@@ -508,7 +510,7 @@ export default function Reports() {
                   <td className="px-2.5 py-1.5 whitespace-nowrap">{r.resolved_by}</td>
                   <td className="px-2.5 py-1.5 whitespace-nowrap">{r.raised_by}</td>
                   <td className="px-2.5 py-1.5"><Stars rating={r.rating} /></td>
-                  <td className="px-2.5 py-1.5 max-w-[160px] truncate" title={r.rating_remarks}>{r.rating_remarks || "—"}</td>
+                  <td className="px-2.5 py-1.5 max-w-[160px] truncate" title={r.rating_remarks}>{r.rating_remarks || "â€”"}</td>
                   <td className="px-2.5 py-1.5 text-center"><ViewEyeButton ticketNumber={r.ticket_number} /></td>
                 </tr>
               ))}
@@ -542,6 +544,7 @@ function TableCard({
   title, search, onSearch, isLoading, error, onRetry, empty,
   total, page, size, onPage, onSize, colCount, children,
 }: TableCardProps) {
+  const { t } = useTranslation();
   const totalPages = Math.max(1, Math.ceil(total / size));
   const start = total === 0 ? 0 : (page - 1) * size + 1;
   const end = Math.min(page * size, total);
@@ -555,7 +558,7 @@ function TableCard({
           <Input
             value={search}
             onChange={(e) => onSearch(e.target.value)}
-            placeholder="Search…"
+            placeholder="Searchâ€¦"
             className="h-8 pl-8 text-xs"
           />
         </div>
@@ -571,8 +574,8 @@ function TableCard({
               ))}
               {!isLoading && error && (
                 <tr><td colSpan={colCount} className="text-center py-10">
-                  <p className="text-sm text-muted-foreground mb-2">Failed to load data. Please refresh.</p>
-                  <Button size="sm" variant="outline" onClick={onRetry}>Retry</Button>
+                  <p className="text-sm text-muted-foreground mb-2">{t("reports.failedToLoad")}</p>
+                  <Button size="sm" variant="outline" onClick={onRetry}>{t("reports.retry")}</Button>
                 </td></tr>
               )}
               {!isLoading && !error && empty && (
@@ -586,7 +589,7 @@ function TableCard({
       </div>
 
       <div className="flex items-center justify-between gap-2 px-3 py-2 border-t text-xs text-muted-foreground">
-        <span>Showing {start}–{end} of {total} tickets</span>
+        <span>Showing {start}â€“{end} of {total} tickets</span>
         <div className="flex items-center gap-2">
           <Select value={String(size)} onValueChange={(v) => { onSize(Number(v)); onPage(1); }}>
             <SelectTrigger className="h-7 w-[80px] text-xs"><SelectValue /></SelectTrigger>

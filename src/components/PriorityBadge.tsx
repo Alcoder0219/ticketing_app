@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { priorityColor, priorityMap } from "@/lib/mock-data";
 import { cn } from "@/lib/utils";
 
@@ -7,6 +8,8 @@ interface PriorityBadgeProps {
 }
 
 export function PriorityBadge({ priority, className }: PriorityBadgeProps) {
+  // Display only — the stored priority value is never changed.
+  const { t } = useTranslation();
   return (
     <span
       className={cn(
@@ -15,7 +18,7 @@ export function PriorityBadge({ priority, className }: PriorityBadgeProps) {
         className
       )}
     >
-      {priorityMap[priority] || priority}
+      {t(`priority.${priority}`, { defaultValue: priorityMap[priority] || priority })}
     </span>
   );
 }

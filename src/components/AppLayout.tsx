@@ -1,6 +1,8 @@
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { useTranslation } from "react-i18next";
 import { Bell, CheckCheck, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +24,7 @@ interface AppLayoutProps {
 
 export function AppLayout({ children, title }: AppLayoutProps) {
   const { user, allowedUnitNames } = useAuth();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [notifOpen, setNotifOpen] = useState(false);
@@ -74,26 +77,28 @@ export function AppLayout({ children, title }: AppLayoutProps) {
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="sticky top-0 z-20 h-16 flex items-center justify-between border-b border-border/70 bg-card/80 backdrop-blur-md px-6 shrink-0">
-            <div className="flex items-center gap-3">
-              <SidebarTrigger className="text-muted-foreground hover:text-foreground rounded-lg" />
+          <header className="sticky top-0 z-20 h-16 flex items-center justify-between border-b border-border/70 bg-card/80 backdrop-blur-md px-3 sm:px-6 shrink-0 gap-2">
+            <div className="flex items-center gap-3 min-w-0">
+              <SidebarTrigger className="text-muted-foreground hover:text-foreground rounded-lg shrink-0" />
               {title && <h1 className="text-xl font-semibold tracking-tight text-foreground truncate">{title}</h1>}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2 shrink-0">
               {allowedUnitNames && allowedUnitNames.length > 0 && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Badge variant="outline" className="gap-1 border-primary/40 text-primary bg-primary/5 cursor-default">
-                        <MapPin className="h-3 w-3" />
-                        <span className="text-xs">{allowedUnitNames.join(", ")}</span>
+                      {/* Hidden on phones so the theme/language/bell row never overflows. */}
+                      <Badge variant="outline" className="hidden lg:flex gap-1 max-w-[18rem] border-primary/40 text-primary bg-primary/5 cursor-default">
+                        <MapPin className="h-3 w-3 shrink-0" />
+                        <span className="text-xs truncate">{allowedUnitNames.join(", ")}</span>
                       </Badge>
                     </TooltipTrigger>
-                    <TooltipContent>Your data access is restricted to: {allowedUnitNames.join(", ")}</TooltipContent>
+                    <TooltipContent>{t("header.accessRestrictedTo", { plants: allowedUnitNames.join(", ") })}</TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
               )}
               <ThemeToggle />
+              <LanguageToggle />
               <Popover open={notifOpen} onOpenChange={setNotifOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="ghost" size="icon" className="relative rounded-full hover:bg-muted transition-colors">
@@ -107,7 +112,7 @@ export function AppLayout({ children, title }: AppLayoutProps) {
                 </PopoverTrigger>
                 <PopoverContent className="w-80 p-0" align="end">
                   <div className="p-3 border-b flex items-center justify-between">
-                    <span className="font-semibold text-sm">Notifications</span>
+                    <span className="font-semibold text-sm">{t("header.notifications")}</span>
                     {unreadCount > 0 && (
                       <Button
                         variant="ghost"
@@ -116,13 +121,13 @@ export function AppLayout({ children, title }: AppLayoutProps) {
                         onClick={() => markAllRead.mutate()}
                       >
                         <CheckCheck className="h-3.5 w-3.5 mr-1" />
-                        Mark all read
+                        {t("header.markAllRead")}
                       </Button>
                     )}
                   </div>
                   <div className="max-h-64 overflow-auto">
                     {(notifications || []).length === 0 ? (
-                      <p className="p-4 text-sm text-muted-foreground text-center">No notifications</p>
+                      <p className="p-4 text-sm text-muted-foreground text-center">{t("header.noNotifications")}</p>
                     ) : (
                       notifications!.map(n => (
                         <div
@@ -145,7 +150,7 @@ export function AppLayout({ children, title }: AppLayoutProps) {
                                   {n.title}
                                 </p>
                                 {!n.is_read && (
-                                  <span className="h-2 w-2 rounded-full bg-primary shrink-0 animate-pulse" aria-label="Unread" />
+                                  <span className="h-2 w-2 rounded-full bg-primary shrink-0 animate-pulse" aria-label={t("header.unread")} />
                                 )}
                               </div>
                               <p className={`text-xs mt-0.5 ${!n.is_read ? "text-foreground/70" : "text-muted-foreground"}`}>
