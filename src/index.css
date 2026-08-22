@@ -174,6 +174,15 @@
   background: hsl(var(--muted-foreground) / 0.5);
 }
 
+/* Scrollable, but with no visible scrollbar (opt-in via class).
+   Scrolling — wheel, trackpad, touch swipe and keyboard — still works; only
+   the bar itself is hidden. Applied per-element, never globally. */
+.scrollbar-none {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge / IE */
+}
+.scrollbar-none::-webkit-scrollbar { display: none; } /* Chrome, Safari, Edge */
+
 /* Tasteful hover-lift for cards/buttons (opt-in) */
 .hover-lift {
   transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;

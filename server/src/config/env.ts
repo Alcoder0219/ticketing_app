@@ -23,8 +23,16 @@ export const env = {
   storageDir: process.env.STORAGE_DIR ?? 'uploads',
   publicBaseUrl: process.env.PUBLIC_BASE_URL ?? 'http://localhost:4000',
 
-  /** Where the *frontend* lives — used to build "View Ticket" links in emails. */
-  appBaseUrl: (process.env.APP_BASE_URL ?? 'http://localhost:8080').replace(/\/+$/, ''),
+  /**
+   * Where the *frontend* lives — used to build the "View Ticket" and
+   * "Rate This Ticket" links in emails.
+   *
+   * Defaults to production: an email is delivered to a real inbox and outlives
+   * the process that sent it, so a missing env var must never produce a
+   * localhost link. Override with APP_BASE_URL for local development.
+   */
+  appBaseUrl: (process.env.APP_BASE_URL ?? 'https://support-tickets.amsonsfoundation.net')
+    .replace(/\/+$/, ''),
 
   /**
    * Gmail API transport — service account + Workspace domain-wide delegation.

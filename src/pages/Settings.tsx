@@ -220,8 +220,9 @@ export default function Settings() {
     <AppLayout title={t("settings.title")}>
       <div className="max-w-4xl mx-auto">
         <Tabs defaultValue="company" className="space-y-6">
-          {/* Scrolls horizontally on small screens instead of squashing the labels. */}
-          <TabsList className="flex w-full overflow-x-auto md:grid md:grid-cols-8">
+          {/* Scrolls horizontally on small screens instead of squashing the
+              labels; scrollbar-none hides the bar without disabling the scroll. */}
+          <TabsList className="flex w-full overflow-x-auto scrollbar-none md:grid md:grid-cols-8">
             <TabsTrigger value="company">{t("settings.company")}</TabsTrigger>
             <TabsTrigger value="units">{t("settings.units")}</TabsTrigger>
             <TabsTrigger value="departments">{t("settings.departments")}</TabsTrigger>
