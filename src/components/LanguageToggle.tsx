@@ -14,7 +14,8 @@ import { supabase } from "@/integrations/api/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 /**
- * English / Swahili UI language switcher, sitting next to the theme toggle.
+ * UI language switcher, sitting next to the theme toggle. Options come from
+ * SUPPORTED_LANGUAGES, so adding a locale there is all that is needed here.
  *
  * Built on the same Radix dropdown as ThemeToggle, so keyboard navigation,
  * focus rings, click-outside and Escape-to-close come from the shared
@@ -42,10 +43,12 @@ export function LanguageToggle() {
     }
   };
 
-  // "English"/"Swahili" rendered in the *active* language, so the menu reads
+  // Each language's name rendered in the *active* language, so the menu reads
   // naturally whichever language is on.
-  const labelFor = (code: LanguageCode) =>
-    code === "en" ? t("header.english") : t("header.swahili");
+  const labelFor = (code: LanguageCode) => {
+    const lang = SUPPORTED_LANGUAGES.find((l) => l.code === code);
+    return lang ? t(lang.labelKey, { defaultValue: lang.label }) : code;
+  };
 
   return (
     <DropdownMenu>

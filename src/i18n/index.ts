@@ -3,10 +3,16 @@ import { initReactI18next } from "react-i18next";
 
 import en from "./locales/en/translation.json";
 import sw from "./locales/sw/translation.json";
+import ptPT from "./locales/pt-PT/translation.json";
 
+/**
+ * `labelKey` resolves through i18next, so each language's name is shown in the
+ * language that is currently active.
+ */
 export const SUPPORTED_LANGUAGES = [
-  { code: "en", label: "English", short: "EN" },
-  { code: "sw", label: "Swahili", short: "SW" },
+  { code: "en", label: "English", short: "EN", labelKey: "header.english" },
+  { code: "sw", label: "Swahili", short: "SW", labelKey: "header.swahili" },
+  { code: "pt-PT", label: "Portuguese (Portugal)", short: "PT", labelKey: "header.portuguese" },
 ] as const;
 
 export type LanguageCode = (typeof SUPPORTED_LANGUAGES)[number]["code"];
@@ -47,10 +53,14 @@ i18n.use(initReactI18next).init({
   resources: {
     en: { translation: en },
     sw: { translation: sw },
+    "pt-PT": { translation: ptPT },
   },
   lng: loadLanguage(),
   fallbackLng: DEFAULT_LANGUAGE,
   supportedLngs: SUPPORTED_LANGUAGES.map((l) => l.code),
+  // "pt-PT" is a region-specific tag. Without this, i18next would also probe a
+  // bare "pt" bundle, which does not exist, before falling back.
+  load: "currentOnly",
   interpolation: { escapeValue: false }, // React already escapes
   returnNull: false,
 });

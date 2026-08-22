@@ -86,6 +86,7 @@
     "language": "Language",
     "english": "English",
     "swahili": "Swahili",
+    "portuguese": "Portuguese (Portugal)",
     "selectLanguage": "Select language",
     "currentLanguage": "Language: {{language}}. Change language",
     "accessRestrictedTo": "Your data access is restricted to: {{plants}}",
