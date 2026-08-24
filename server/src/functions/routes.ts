@@ -6,7 +6,6 @@ import bcrypt from 'bcryptjs';
 import { getUserRole } from '../auth/authz.js';
 import { handleChatWithAI } from './chatWithAI.js';
 import { handleClassifyExtract } from './classifyExtract.js';
-import { syncTicketsToSheets } from './integrations.js';
 import { verifyGmailAuth, isEmailEnabled, missingGmailConfig, credentialSource } from '../notifications/gmail.js';
 
 export const functionsRouter = Router();
@@ -141,7 +140,6 @@ functionsRouter.post('/admin-delete-user', ...adminGuard(), async (req, res) => 
   }
 });
 
-// ── Integration functions (AI / Google Sheets) ───────────────────────────────
+// ── Integration functions (AI) ────────────────────────────────────────────────
 functionsRouter.post('/chat-with-ai', requireAuth, handleChatWithAI);
 functionsRouter.post('/ai-classify-extract', requireAuth, handleClassifyExtract);
-functionsRouter.post('/sync-tickets-to-sheets', requireAuth, syncTicketsToSheets);

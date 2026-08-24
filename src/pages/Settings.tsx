@@ -27,7 +27,6 @@ import { supabase } from "@/integrations/api/client";
 import { useToast } from "@/hooks/use-toast";
 
 import { RolesPermissionsTab } from "@/components/settings/RolesPermissionsTab";
-import { GoogleSheetsSync } from "@/components/settings/GoogleSheetsSync";
 import { AIConfigTab } from "@/components/settings/AIConfigTab";
 import { formatDate } from "@/utils/dateFormat";
 
@@ -483,20 +482,9 @@ export default function Settings() {
             </Card>
           </TabsContent>
 
-          {/* Roles & Permissions (with nested Sheets Sync sub-tab) */}
+          {/* Roles & Permissions */}
           <TabsContent value="roles">
-            <Tabs defaultValue="permissions" className="space-y-4">
-              <TabsList>
-                <TabsTrigger value="permissions">{t("settings.permissions")}</TabsTrigger>
-                <TabsTrigger value="sheets">{t("settings.sheetsSync")}</TabsTrigger>
-              </TabsList>
-              <TabsContent value="permissions">
-                <RolesPermissionsTab />
-              </TabsContent>
-              <TabsContent value="sheets" className="space-y-4">
-                <GoogleSheetsSync />
-              </TabsContent>
-            </Tabs>
+            <RolesPermissionsTab />
           </TabsContent>
         </Tabs>
       </div>

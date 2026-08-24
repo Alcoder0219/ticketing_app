@@ -78,8 +78,6 @@ export const env = {
   // optional integrations
   lovableApiKey: process.env.LOVABLE_API_KEY ?? '',
   openaiApiKey: process.env.OPENAI_API_KEY ?? '',
-  googleServiceAccountJson: process.env.GOOGLE_SERVICE_ACCOUNT_JSON ?? '',
-  googleSheetsId: process.env.GOOGLE_SHEETS_ID ?? '',
 
   // migration
   supabaseUrl: process.env.SUPABASE_URL ?? '',

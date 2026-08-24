@@ -59,5 +59,5 @@ hashes). Re-enable each by setting a password via the admin UI
 
 ## Environment variables
 
-See `.env.example`. Integration features (AI chat, Slack, BigQuery, Google
-Sheets) are optional and degrade gracefully when their credentials are absent.
+See `.env.example`. Integration features (AI chat, Slack, BigQuery) are
+optional and degrade gracefully when their credentials are absent.
