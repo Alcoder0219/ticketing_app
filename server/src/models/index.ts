@@ -130,9 +130,9 @@ const profiles = new Schema(
   {
     _id: idField,
     user_id: { type: String, required: true, unique: true, index: true },
-    name: { type: String, required: true },
+    name: { type: String, required: true, index: true },
     username: { type: String, default: null },
-    employee_id: { type: String, default: null },
+    employee_id: { type: String, default: null, index: true },
     department_id: { type: String, default: null, index: true },
     unit_id: { type: String, default: null, index: true },
     contact: { type: String, default: null },
@@ -295,11 +295,21 @@ const tickets = new Schema(
     sla_at_risk_notified: { type: Boolean, default: false },
     sla_response_due_at: { type: Date, default: null },
     sla_response_breached: { type: Boolean, default: false },
-    created_at: ts(),
+    created_at: { ...ts(), index: true },
     updated_at: ts(),
   },
   baseOptions,
 );
+
+// Compound indexes matching the app's real filter+sort query shapes
+// (status/assignee/raiser/department scoping, always sorted by created_at).
+tickets.index({ status: 1, created_at: -1 });
+tickets.index({ assigned_to: 1, created_at: -1 });
+tickets.index({ raised_by: 1, created_at: -1 });
+tickets.index({ issue_department_id: 1, created_at: -1 });
+tickets.index({ issue_department_id: 1, status: 1, created_at: -1 });
+tickets.index({ unit_id: 1, created_at: -1 });
+tickets.index({ target_date: 1, status: 1 });
 
 // Auto-generate a unique ticket_number when it's missing or the "TEMP"
 // placeholder the client inserts. Ports the old Supabase before-insert trigger
@@ -393,7 +403,7 @@ const userRoles = new Schema(
   {
     _id: idField,
     user_id: { type: String, required: true, index: true },
-    role: { type: String, enum: APP_ROLES, required: true },
+    role: { type: String, enum: APP_ROLES, required: true, index: true },
   },
   baseOptions,
 );

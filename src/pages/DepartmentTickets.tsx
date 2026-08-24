@@ -22,11 +22,15 @@ import { Search, Building2, UserPlus, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useDeleteTicket } from "@/hooks/useDeleteTicket";
-import { AgingBadge, computeAgingDaysForTicket } from "@/components/AgingBadge";
-import { AGING_FILTER_OPTIONS, matchesAgingFilter, type AgingFilterValue } from "@/lib/aging";
+import { AgingBadge } from "@/components/AgingBadge";
+import { AGING_FILTER_OPTIONS, type AgingFilterValue } from "@/lib/aging";
 import { useTicketsRealtime } from "@/hooks/useTicketsRealtime";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatDate } from "@/utils/dateFormat";
+import { usePagination } from "@/hooks/usePagination";
+import { buildPageMeta } from "@/lib/pagination";
+import { PaginationControls } from "@/components/PaginationControls";
+import { orIlike } from "@/lib/searchFilter";
 
 const statusTabs = [
   { key: "all", label: "All" },
@@ -35,6 +39,26 @@ const statusTabs = [
   { key: "resolved", label: "Resolved" },
   { key: "closed", label: "Closed" },
 ];
+
+const DEPT_TICKETS_SELECT =
+  "*, issue_dept:departments!tickets_issue_department_id_fkey(name), raiser:profiles!tickets_raised_by_fkey(name), assignee:profiles!tickets_assigned_to_fkey(name)";
+
+/** Aging buckets approximated from created_at alone — see PendingTickets.tsx for rationale. */
+function applyAgingFilter(q: any, filter: AgingFilterValue) {
+  if (filter === "all") return q;
+  const now = Date.now();
+  const cutoff = (days: number) => new Date(now - days * 86400000).toISOString();
+  switch (filter) {
+    case "0-2":
+      return q.gte("created_at", cutoff(3));
+    case "3-7":
+      return q.gte("created_at", cutoff(8)).lt("created_at", cutoff(3));
+    case "8-14":
+      return q.gte("created_at", cutoff(15)).lt("created_at", cutoff(8));
+    case "15+":
+      return q.lt("created_at", cutoff(15));
+  }
+}
 
 export default function DepartmentTickets() {
   const { t } = useTranslation();
@@ -55,6 +79,9 @@ export default function DepartmentTickets() {
 
   useTicketsRealtime([["dept-tickets"]]);
 
+  const filterKey = JSON.stringify({ selectedDept, activeTab, agingFilter, assigneeFilter, unitFilter, search });
+  const pagination = usePagination({ resetKey: filterKey });
+
   const { data: departments } = useQuery({
     queryKey: ["departments"],
     queryFn: async () => {
@@ -74,26 +101,108 @@ export default function DepartmentTickets() {
     },
   });
 
-  const { data: tickets, isLoading } = useQuery({
-    queryKey: ["dept-tickets", isSuperOrAdmin, profile?.department_id, role],
+  // All users with the assignable_person role — scan-free source for the
+  // assignee dropdown instead of deriving options from the ticket list.
+  const { data: assignableUsers } = useQuery({
+    queryKey: ["assignable-users"],
     queryFn: async () => {
-      let query = supabase
-        .from("tickets")
-        .select("*, issue_dept:departments!tickets_issue_department_id_fkey(name), raiser:profiles!tickets_raised_by_fkey(name), assignee:profiles!tickets_assigned_to_fkey(name)")
-        .order("created_at", { ascending: false });
+      const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", "assigned_person");
+      const ids = Array.from(new Set((roles || []).map((r: any) => r.user_id)));
+      if (!ids.length) return [];
+      const { data } = await supabase.from("profiles").select("user_id,name").in("user_id", ids).order("name");
+      return data || [];
+    },
+  });
 
-      if (!isSuperOrAdmin && profile?.department_id) {
-        query = query.eq("issue_department_id", profile.department_id);
-      }
-      if (role === "user") {
-        query = query.eq("raised_by", user!.id);
-      }
+  /** Role scoping shared by every count/rows query below. */
+  function roleScopedBase() {
+    let q: any = supabase.from("tickets");
+    if (!isSuperOrAdmin && profile?.department_id) q = q.eq("issue_department_id", profile.department_id);
+    if (role === "user") q = q.eq("raised_by", user!.id);
+    return q;
+  }
 
-      const { data } = await query;
+  /** Role scoping + all UI filters, shared by the rows and count queries. */
+  function buildTicketsBase() {
+    let q = roleScopedBase();
+    if (selectedDept !== "all") q = q.eq("issue_department_id", selectedDept);
+    if (unitFilter !== "all") q = q.eq("unit_id", unitFilter);
+    if (assigneeFilter === "unassigned") q = q.is("assigned_to", null);
+    else if (assigneeFilter !== "all") q = q.eq("assigned_to", assigneeFilter);
+    if (activeTab === "open") q = q.in("status", ["open", "reopened"]);
+    else if (activeTab !== "all") q = q.eq("status", activeTab);
+    q = applyAgingFilter(q, agingFilter);
+    if (search) q = q.or(orIlike([["title", search], ["ticket_number", search]]));
+    return q;
+  }
+
+  const { data: tickets = [], isLoading } = useQuery({
+    queryKey: ["dept-tickets", "rows", isSuperOrAdmin, profile?.department_id, role, selectedDept, activeTab, agingFilter, assigneeFilter, unitFilter, search, pagination.page],
+    queryFn: async () => {
+      const { data } = await buildTicketsBase()
+        .select(DEPT_TICKETS_SELECT)
+        .order("created_at", { ascending: false })
+        .range(pagination.range.from, pagination.range.to);
       return data || [];
     },
     enabled: !!user,
   });
+
+  const { data: filteredCount = 0 } = useQuery({
+    queryKey: ["dept-tickets", "count", isSuperOrAdmin, profile?.department_id, role, selectedDept, activeTab, agingFilter, assigneeFilter, unitFilter, search],
+    queryFn: async () => {
+      const { count } = await buildTicketsBase().select("id", { head: true, count: "exact" });
+      return count ?? 0;
+    },
+    enabled: !!user,
+  });
+
+  // Status-tab badge counts — scoped by role + selectedDept only, independent
+  // of unit/assignee/aging/search, matching the pre-pagination behavior.
+  const { data: tabCounts = { all: 0, open: 0, in_progress: 0, resolved: 0, closed: 0 } } = useQuery({
+    queryKey: ["dept-tickets", "tab-counts", isSuperOrAdmin, profile?.department_id, role, selectedDept],
+    queryFn: async () => {
+      const base = () => {
+        let q = roleScopedBase();
+        if (selectedDept !== "all") q = q.eq("issue_department_id", selectedDept);
+        return q;
+      };
+      const [all, open, inProgress, resolved, closed] = await Promise.all([
+        base().select("id", { head: true, count: "exact" }),
+        base().in("status", ["open", "reopened"]).select("id", { head: true, count: "exact" }),
+        base().eq("status", "in_progress").select("id", { head: true, count: "exact" }),
+        base().eq("status", "resolved").select("id", { head: true, count: "exact" }),
+        base().eq("status", "closed").select("id", { head: true, count: "exact" }),
+      ]);
+      return {
+        all: all.count ?? 0,
+        open: open.count ?? 0,
+        in_progress: inProgress.count ?? 0,
+        resolved: resolved.count ?? 0,
+        closed: closed.count ?? 0,
+      };
+    },
+    enabled: !!user,
+  });
+
+  // Sidebar department counts — admin/super_admin only (the sidebar itself
+  // is gated the same way), one small indexed count per department.
+  const { data: deptCountsData } = useQuery({
+    queryKey: ["dept-tickets", "dept-counts", (departments || []).map((d: any) => d.id).join(",")],
+    queryFn: async () => {
+      const [allRes, ...perDept] = await Promise.all([
+        supabase.from("tickets").select("id", { head: true, count: "exact" }),
+        ...(departments || []).map((d: any) =>
+          supabase.from("tickets").eq("issue_department_id", d.id).select("id", { head: true, count: "exact" }),
+        ),
+      ]);
+      const byDept: Record<string, number> = {};
+      (departments || []).forEach((d: any, i: number) => { byDept[d.id] = perDept[i].count ?? 0; });
+      return { all: allRes.count ?? 0, byDept };
+    },
+    enabled: isSuperOrAdmin && !!departments && departments.length > 0,
+  });
+  const deptCounts = deptCountsData?.byDept ?? {};
 
   // Team members for HOD assign
   const { data: teamMembers } = useQuery({
@@ -139,48 +248,8 @@ export default function DepartmentTickets() {
     },
   });
 
-  const allTickets = tickets || [];
-
-  // Filter
-  const filtered = allTickets.filter((t) => {
-    if (selectedDept !== "all" && t.issue_department_id !== selectedDept) return false;
-    if (unitFilter !== "all" && (t as any).unit_id !== unitFilter) return false;
-    if (assigneeFilter !== "all") {
-      if (assigneeFilter === "unassigned" ? !!t.assigned_to : t.assigned_to !== assigneeFilter) return false;
-    }
-    if (activeTab !== "all") {
-      if (activeTab === "open" && !["open", "reopened"].includes(t.status)) return false;
-      if (activeTab !== "open" && t.status !== activeTab) return false;
-    }
-    if (agingFilter !== "all" && !matchesAgingFilter(computeAgingDaysForTicket(t as any), agingFilter)) return false;
-    if (search && !t.title.toLowerCase().includes(search.toLowerCase()) && !t.ticket_number.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
-
-  // Unique assignees from tickets
-  const assigneeOptions = Array.from(
-    new Map(
-      allTickets
-        .filter((t) => t.assigned_to && (t as any).assignee?.name)
-        .map((t) => [t.assigned_to as string, (t as any).assignee.name as string])
-    ).entries()
-  ).sort((a, b) => a[1].localeCompare(b[1]));
-
-  // Department counts for sidebar
-  const deptCounts: Record<string, number> = {};
-  allTickets.forEach(t => {
-    const id = t.issue_department_id || "none";
-    deptCounts[id] = (deptCounts[id] || 0) + 1;
-  });
-
-  // Tab counts
-  const tabCounts: Record<string, number> = {
-    all: allTickets.filter(t => selectedDept === "all" || t.issue_department_id === selectedDept).length,
-    open: allTickets.filter(t => ["open", "reopened"].includes(t.status) && (selectedDept === "all" || t.issue_department_id === selectedDept)).length,
-    in_progress: allTickets.filter(t => t.status === "in_progress" && (selectedDept === "all" || t.issue_department_id === selectedDept)).length,
-    resolved: allTickets.filter(t => t.status === "resolved" && (selectedDept === "all" || t.issue_department_id === selectedDept)).length,
-    closed: allTickets.filter(t => t.status === "closed" && (selectedDept === "all" || t.issue_department_id === selectedDept)).length,
-  };
+  const filtered = tickets;
+  const pageMeta = buildPageMeta(pagination.page, pagination.pageSize, filteredCount);
 
   return (
     <AppLayout title={t("nav.departmentTickets")}>
@@ -198,7 +267,7 @@ export default function DepartmentTickets() {
                   onClick={() => setSelectedDept("all")}
                 >
                   <span>{t("common.allDepartments")}</span>
-                  <Badge variant="secondary" className="text-xs">{allTickets.length}</Badge>
+                  <Badge variant="secondary" className="text-xs">{deptCountsData?.all ?? 0}</Badge>
                 </button>
                 {departments?.map(d => (
                   <button
@@ -240,8 +309,8 @@ export default function DepartmentTickets() {
               <SelectContent>
                 <SelectItem value="all">{t("common.allAssignees")}</SelectItem>
                 <SelectItem value="unassigned">{t("ticket.unassigned")}</SelectItem>
-                {assigneeOptions.map(([id, name]) => (
-                  <SelectItem key={id} value={id}>{name}</SelectItem>
+                {(assignableUsers || []).map((a: any) => (
+                  <SelectItem key={a.user_id} value={a.user_id}>{a.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -273,7 +342,7 @@ export default function DepartmentTickets() {
                 <div className="flex justify-center py-12">
                   <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
                 </div>
-              ) : filtered.length === 0 ? (
+              ) : filteredCount === 0 ? (
                 <Card className="border shadow-sm">
                   <CardContent className="flex flex-col items-center justify-center py-16 text-center">
                     <Building2 className="h-10 w-10 text-muted-foreground mb-3" />
@@ -350,6 +419,16 @@ export default function DepartmentTickets() {
                       </CardContent>
                     </Card>
                   ))}
+                </div>
+              )}
+              {filteredCount > 0 && (
+                <div className="mt-4">
+                  <PaginationControls
+                    meta={pageMeta}
+                    onPageChange={pagination.setPage}
+                    isLoading={isLoading}
+                    label="tickets"
+                  />
                 </div>
               )}
             </TabsContent>

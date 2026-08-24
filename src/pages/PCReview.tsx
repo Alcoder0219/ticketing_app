@@ -1,4 +1,4 @@
-﻿import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,8 +34,10 @@ import {
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SignedImage, SignedLink } from "@/components/SignedMedia";
-
-const PAGE_SIZE = 20;
+import { usePagination } from "@/hooks/usePagination";
+import { buildPageMeta } from "@/lib/pagination";
+import { PaginationControls } from "@/components/PaginationControls";
+import { orIlike } from "@/lib/searchFilter";
 
 function useDebounced<T>(value: T, delay = 300) {
   const [debounced, setDebounced] = useState(value);
@@ -51,6 +53,11 @@ function daysBetween(from: Date, to: Date) {
   return Math.floor(ms / (1000 * 60 * 60 * 24));
 }
 
+const OVERDUE_SELECT =
+  "*, issue_dept:departments!tickets_issue_department_id_fkey(id,name), unit:units!tickets_unit_id_fkey(id,name), assignee:profiles!tickets_assigned_to_fkey(name)";
+const UNASSIGNED_SELECT =
+  "*, issue_dept:departments!tickets_issue_department_id_fkey(id,name), unit:units!tickets_unit_id_fkey(id,name), assignee:profiles!tickets_assigned_to_fkey(name), raiser:profiles!tickets_raised_by_fkey(name)";
+
 export default function PCReview() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -63,12 +70,17 @@ export default function PCReview() {
   const [toDate, setToDate] = useState<Date | undefined>();
   const [searchInput, setSearchInput] = useState("");
   const search = useDebounced(searchInput, 300);
+  const fromDateStr = fromDate ? fromDate.toISOString().slice(0, 10) : undefined;
+  const toDateStr = toDate ? toDate.toISOString().slice(0, 10) : undefined;
 
-  const [overduePage, setOverduePage] = useState(1);
-  const [pendingPage, setPendingPage] = useState(1);
-  const [unassignedPage, setUnassignedPage] = useState(1);
   const [remindedIds, setRemindedIds] = useState<Set<string>>(new Set());
   const [proofPhotos, setProofPhotos] = useState<string[] | null>(null);
+
+  // Reset every tab back to page 1 whenever any filter/search changes.
+  const filterKey = JSON.stringify({ plant, department, fromDateStr, toDateStr, search });
+  const overduePagination = usePagination({ resetKey: filterKey });
+  const pendingPagination = usePagination({ resetKey: filterKey });
+  const unassignedPagination = usePagination({ resetKey: filterKey });
 
   const { data: units } = useQuery({
     queryKey: ["pc-review-units", allowedUnitNames?.join(",") ?? "all"],
@@ -88,22 +100,64 @@ export default function PCReview() {
     },
   });
 
+  /** Common plant/department/date-range/search filters shared by the overdue and unassigned queries. */
+  function applyCommonFilters(q: any, dateField: "target_date" | "created_at") {
+    if (plant !== "all") q = q.eq("unit_id", plant);
+    if (department !== "all") q = q.eq("issue_department_id", department);
+    if (fromDateStr) q = q.gte(dateField, fromDateStr);
+    if (toDateStr) q = q.lte(dateField, toDateStr);
+    if (search) q = q.or(orIlike([["ticket_number", search], ["title", search], ["description", search]]));
+    return q;
+  }
+
   // Overdue tickets: target_date < today AND status not resolved/closed
   const todayStr = new Date().toISOString().slice(0, 10);
-  const { data: overdueRaw, isLoading: overdueLoading } = useQuery({
-    queryKey: ["pc-review-overdue", todayStr],
+  function buildOverdueBase() {
+    const q = supabase.from("tickets").lt("target_date", todayStr).not("status", "in", "(resolved,closed)");
+    return applyCommonFilters(q, "target_date");
+  }
+
+  const { data: overduePageRows = [], isLoading: overdueLoading, isFetching: overdueFetching } = useQuery({
+    queryKey: ["pc-review-overdue", "rows", todayStr, plant, department, fromDateStr, toDateStr, search, overduePagination.page],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("tickets")
-        .select("*, issue_dept:departments!tickets_issue_department_id_fkey(id,name), unit:units!tickets_unit_id_fkey(id,name), assignee:profiles!tickets_assigned_to_fkey(name)")
-        .lt("target_date", todayStr)
-        .not("status", "in", "(resolved,closed)")
-        .order("target_date", { ascending: true });
+      const { data } = await buildOverdueBase()
+        .select(OVERDUE_SELECT)
+        .order("target_date", { ascending: true })
+        .range(overduePagination.range.from, overduePagination.range.to);
       return data || [];
     },
   });
 
-  // Pending feedback: status resolved/closed AND no rating
+  const { data: overdueCount = 0 } = useQuery({
+    queryKey: ["pc-review-overdue", "count", todayStr, plant, department, fromDateStr, toDateStr, search],
+    queryFn: async () => {
+      const { count } = await buildOverdueBase().select("id", { head: true, count: "exact" });
+      return count ?? 0;
+    },
+  });
+
+  // Critical = overdue by 15+ days, scoped by the same active filters.
+  const cutoff15Str = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 15);
+    return d.toISOString().slice(0, 10);
+  }, []);
+  const { data: criticalCount = 0 } = useQuery({
+    queryKey: ["pc-review-critical", "count", cutoff15Str, plant, department, fromDateStr, toDateStr, search],
+    queryFn: async () => {
+      const q = applyCommonFilters(
+        supabase.from("tickets").lt("target_date", cutoff15Str).not("status", "in", "(resolved,closed)"),
+        "target_date",
+      );
+      const { count } = await q.select("id", { head: true, count: "exact" });
+      return count ?? 0;
+    },
+  });
+
+  // Pending feedback: status resolved/closed AND no rating. Left as a full
+  // fetch + client-side anti-join (deliberate exception — see project plan):
+  // this set is self-limiting (shrinks as people rate tickets) and won't
+  // reach ticket-table scale the way the other lists can.
   const { data: pendingRaw, isLoading: pendingLoading } = useQuery({
     queryKey: ["pc-review-pending"],
     queryFn: async () => {
@@ -125,19 +179,32 @@ export default function PCReview() {
   });
 
   // Unassigned OR No Target Date (excluding resolved/closed)
-  const { data: unassignedRaw, isLoading: unassignedLoading } = useQuery({
-    queryKey: ["pc-review-unassigned"],
+  function buildUnassignedBase() {
+    const q = supabase.from("tickets").not("status", "in", "(resolved,closed)").or("assigned_to.is.null,target_date.is.null");
+    return applyCommonFilters(q, "created_at");
+  }
+
+  const { data: unassignedPageRows = [], isLoading: unassignedLoading, isFetching: unassignedFetching } = useQuery({
+    queryKey: ["pc-review-unassigned", "rows", plant, department, fromDateStr, toDateStr, search, unassignedPagination.page],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("tickets")
-        .select("*, issue_dept:departments!tickets_issue_department_id_fkey(id,name), unit:units!tickets_unit_id_fkey(id,name), assignee:profiles!tickets_assigned_to_fkey(name), raiser:profiles!tickets_raised_by_fkey(name)")
-        .not("status", "in", "(resolved,closed)")
-        .or("assigned_to.is.null,target_date.is.null")
-        .order("created_at", { ascending: false });
+      const { data } = await buildUnassignedBase()
+        .select(UNASSIGNED_SELECT)
+        .order("created_at", { ascending: false })
+        .range(unassignedPagination.range.from, unassignedPagination.range.to);
       return data || [];
     },
   });
 
+  const { data: unassignedCount = 0 } = useQuery({
+    queryKey: ["pc-review-unassigned", "count", plant, department, fromDateStr, toDateStr, search],
+    queryFn: async () => {
+      const { count } = await buildUnassignedBase().select("id", { head: true, count: "exact" });
+      return count ?? 0;
+    },
+  });
+
+  // Pending feedback stays client-filtered (see note above), so it keeps its
+  // own filter functions and is paginated by slicing the filtered array.
   const filterTicket = (t: any) => {
     if (plant !== "all" && t.unit_id !== plant) return false;
     if (department !== "all" && t.issue_department_id !== department) return false;
@@ -162,29 +229,19 @@ export default function PCReview() {
     );
   };
 
-  const overdueFiltered = useMemo(
-    () => (overdueRaw || []).filter(filterTicket).filter(matchSearch),
-    [overdueRaw, plant, department, fromDate, toDate, search]
-  );
   const pendingFiltered = useMemo(
     () => (pendingRaw || []).filter(filterTicket).filter(matchSearch),
     [pendingRaw, plant, department, fromDate, toDate, search]
   );
-  const unassignedFiltered = useMemo(
-    () => (unassignedRaw || []).filter(filterTicket).filter(matchSearch),
-    [unassignedRaw, plant, department, fromDate, toDate, search]
+  const pendingCount = pendingFiltered.length;
+  const pendingPageRows = pendingFiltered.slice(
+    pendingPagination.range.from,
+    pendingPagination.range.to + 1,
   );
 
-  const overdueCount = overdueFiltered.length;
-  const pendingCount = pendingFiltered.length;
-  const unassignedCount = unassignedFiltered.length;
-  const criticalCount = useMemo(
-    () => overdueFiltered.filter((t: any) => {
-      const days = daysBetween(new Date(t.target_date), new Date());
-      return days >= 15;
-    }).length,
-    [overdueFiltered]
-  );
+  const overdueMeta = buildPageMeta(overduePagination.page, overduePagination.pageSize, overdueCount);
+  const pendingMeta = buildPageMeta(pendingPagination.page, pendingPagination.pageSize, pendingCount);
+  const unassignedMeta = buildPageMeta(unassignedPagination.page, unassignedPagination.pageSize, unassignedCount);
 
   const filtersActive =
     plant !== "all" || department !== "all" || !!fromDate || !!toDate || !!search;
@@ -196,16 +253,6 @@ export default function PCReview() {
     setToDate(undefined);
     setSearchInput("");
   };
-
-  // Pagination slices
-  const overduePageRows = overdueFiltered.slice((overduePage - 1) * PAGE_SIZE, overduePage * PAGE_SIZE);
-  const pendingPageRows = pendingFiltered.slice((pendingPage - 1) * PAGE_SIZE, pendingPage * PAGE_SIZE);
-  const unassignedPageRows = unassignedFiltered.slice((unassignedPage - 1) * PAGE_SIZE, unassignedPage * PAGE_SIZE);
-  const overduePages = Math.max(1, Math.ceil(overdueCount / PAGE_SIZE));
-  const pendingPages = Math.max(1, Math.ceil(pendingCount / PAGE_SIZE));
-  const unassignedPages = Math.max(1, Math.ceil(unassignedCount / PAGE_SIZE));
-
-  useEffect(() => { setOverduePage(1); setPendingPage(1); setUnassignedPage(1); }, [plant, department, fromDate, toDate, search]);
 
   const handleSendReminder = async (ticket: any) => {
     try {
@@ -375,12 +422,12 @@ export default function PCReview() {
                                 </div>
                               </TableCell>
                               <TableCell className="max-w-[260px] truncate">{t.title}</TableCell>
-                              <TableCell>{t.issue_dept?.name || "â€”"}</TableCell>
+                              <TableCell>{t.issue_dept?.name || "—"}</TableCell>
                               <TableCell>{t.assignee?.name || "Unassigned"}</TableCell>
-                              <TableCell>{t.target_date ? formatDate(t.target_date) : "â€”"}</TableCell>
+                              <TableCell>{t.target_date ? formatDate(t.target_date) : "—"}</TableCell>
                               <TableCell>{days}</TableCell>
                               <TableCell><Badge variant="outline" className="capitalize">{String(t.status).replace("_", " ")}</Badge></TableCell>
-                              <TableCell>{t.unit?.name || "â€”"}</TableCell>
+                              <TableCell>{t.unit?.name || "—"}</TableCell>
                             </TableRow>
                           );
                         })}
@@ -389,14 +436,13 @@ export default function PCReview() {
                   </div>
                 )}
                 {overdueCount > 0 && (
-                  <div className="flex items-center justify-between p-4 border-t">
-                    <div className="text-xs text-muted-foreground">
-                      Showing {(overduePage - 1) * PAGE_SIZE + 1}â€“{Math.min(overduePage * PAGE_SIZE, overdueCount)} of {overdueCount} tickets
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" disabled={overduePage === 1} onClick={() => setOverduePage(p => p - 1)}>{t("pcReview.previous")}</Button>
-                      <Button variant="outline" size="sm" disabled={overduePage >= overduePages} onClick={() => setOverduePage(p => p + 1)}>{t("pcReview.next")}</Button>
-                    </div>
+                  <div className="p-4 border-t">
+                    <PaginationControls
+                      meta={overdueMeta}
+                      onPageChange={overduePagination.setPage}
+                      isLoading={overdueFetching}
+                      label="tickets"
+                    />
                   </div>
                 )}
               </CardContent>
@@ -446,10 +492,10 @@ export default function PCReview() {
                             <TableRow key={t.id} className="hover:bg-muted/50">
                               <TableCell className="font-mono text-xs"><TicketIdLink ticketNumber={t.ticket_number} /></TableCell>
                               <TableCell className="max-w-[260px] truncate">{t.title}</TableCell>
-                              <TableCell>{t.raiser?.name || "â€”"}</TableCell>
-                              <TableCell>{t.closed_at ? formatDate(t.closed_at) : "â€”"}</TableCell>
-                              <TableCell>{t.assignee?.name || "â€”"}</TableCell>
-                              <TableCell>{t.closer?.name || t.assignee?.name || "â€”"}</TableCell>
+                              <TableCell>{t.raiser?.name || "—"}</TableCell>
+                              <TableCell>{t.closed_at ? formatDate(t.closed_at) : "—"}</TableCell>
+                              <TableCell>{t.assignee?.name || "—"}</TableCell>
+                              <TableCell>{t.closer?.name || t.assignee?.name || "—"}</TableCell>
                               <TableCell>
                                 <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-amber-300">Pending</Badge>
                               </TableCell>
@@ -460,15 +506,15 @@ export default function PCReview() {
                                     onClick={() => setProofPhotos(t.resolution_photos as string[])}
                                     className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100"
                                   >
-                                    <Eye className="h-3 w-3" /> âœ… Photos Available
+                                    <Eye className="h-3 w-3" /> ✅ Photos Available
                                   </button>
                                 ) : (
                                   <span className="inline-flex items-center rounded-full border border-red-300 bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700">
-                                    âŒ No Photos
+                                    ❌ No Photos
                                   </span>
                                 )}
                               </TableCell>
-                              <TableCell>{t.unit?.name || "â€”"}</TableCell>
+                              <TableCell>{t.unit?.name || "—"}</TableCell>
                               <TableCell>
                                 {sent ? (
                                   <Button size="sm" variant="outline" disabled>Reminder Sent</Button>
@@ -498,14 +544,12 @@ export default function PCReview() {
                   </div>
                 )}
                 {pendingCount > 0 && (
-                  <div className="flex items-center justify-between p-4 border-t">
-                    <div className="text-xs text-muted-foreground">
-                      Showing {(pendingPage - 1) * PAGE_SIZE + 1}â€“{Math.min(pendingPage * PAGE_SIZE, pendingCount)} of {pendingCount} tickets
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" disabled={pendingPage === 1} onClick={() => setPendingPage(p => p - 1)}>{t("pcReview.previous")}</Button>
-                      <Button variant="outline" size="sm" disabled={pendingPage >= pendingPages} onClick={() => setPendingPage(p => p + 1)}>{t("pcReview.next")}</Button>
-                    </div>
+                  <div className="p-4 border-t">
+                    <PaginationControls
+                      meta={pendingMeta}
+                      onPageChange={pendingPagination.setPage}
+                      label="tickets"
+                    />
                   </div>
                 )}
               </CardContent>
@@ -565,9 +609,9 @@ export default function PCReview() {
                                 </div>
                               </TableCell>
                               <TableCell className="max-w-[260px] truncate">{t.title}</TableCell>
-                              <TableCell>{t.issue_dept?.name || "â€”"}</TableCell>
-                              <TableCell>{t.unit?.name || "â€”"}</TableCell>
-                              <TableCell>{t.raiser?.name || "â€”"}</TableCell>
+                              <TableCell>{t.issue_dept?.name || "—"}</TableCell>
+                              <TableCell>{t.unit?.name || "—"}</TableCell>
+                              <TableCell>{t.raiser?.name || "—"}</TableCell>
                               <TableCell className={noAssignee ? "text-destructive font-medium" : ""}>
                                 {noAssignee ? "Not Assigned" : t.assignee?.name}
                               </TableCell>
@@ -593,14 +637,13 @@ export default function PCReview() {
                   </div>
                 )}
                 {unassignedCount > 0 && (
-                  <div className="flex items-center justify-between p-4 border-t">
-                    <div className="text-xs text-muted-foreground">
-                      Showing {(unassignedPage - 1) * PAGE_SIZE + 1}â€“{Math.min(unassignedPage * PAGE_SIZE, unassignedCount)} of {unassignedCount} tickets
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" disabled={unassignedPage === 1} onClick={() => setUnassignedPage(p => p - 1)}>{t("pcReview.previous")}</Button>
-                      <Button variant="outline" size="sm" disabled={unassignedPage >= unassignedPages} onClick={() => setUnassignedPage(p => p + 1)}>{t("pcReview.next")}</Button>
-                    </div>
+                  <div className="p-4 border-t">
+                    <PaginationControls
+                      meta={unassignedMeta}
+                      onPageChange={unassignedPagination.setPage}
+                      isLoading={unassignedFetching}
+                      label="tickets"
+                    />
                   </div>
                 )}
               </CardContent>

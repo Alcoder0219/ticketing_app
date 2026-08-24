@@ -10,7 +10,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Plus, Filter, Eye, RefreshCw, Search, FileText, Trash2, Star } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -25,11 +25,19 @@ import { TicketIdLink } from "@/components/TicketIdLink";
 import { SignedImage } from "@/components/SignedMedia";
 import { RatingDialog } from "@/components/RatingDialog";
 import { formatDate } from "@/utils/dateFormat";
+import { usePagination } from "@/hooks/usePagination";
+import { buildPageMeta } from "@/lib/pagination";
+import { PaginationControls } from "@/components/PaginationControls";
+import { orIlike } from "@/lib/searchFilter";
 
 type TabKey = "all" | "pending" | "resolved";
 
 const priorities = ["low", "medium", "high", "critical"];
 
+const TICKETS_SELECT =
+  "*, issue_dept:departments!tickets_issue_department_id_fkey(name), unit:units(name), assigned_profile:profiles!tickets_assigned_to_fkey(name)";
+const PENDING_STATUSES = ["open", "in_progress", "reopened"];
+const RESOLVED_STATUSES = ["resolved", "closed"];
 
 export default function MyTickets() {
   const { t } = useTranslation();
@@ -44,15 +52,26 @@ export default function MyTickets() {
 
   useTicketsRealtime([["my-tickets"]]);
 
+  const filterKey = JSON.stringify({ activeTab, priorityFilter, search });
+  const pagination = usePagination({ resetKey: filterKey });
 
-  const { data: tickets, isLoading } = useQuery({
-    queryKey: ["my-tickets", user?.id],
+  /** raised_by + activeTab/priority/search filters, shared by the rows and count queries. */
+  function buildTicketsBase() {
+    let q: any = supabase.from("tickets").eq("raised_by", user!.id);
+    if (activeTab === "pending") q = q.in("status", PENDING_STATUSES);
+    else if (activeTab === "resolved") q = q.in("status", RESOLVED_STATUSES);
+    if (priorityFilter !== "all") q = q.eq("priority", priorityFilter);
+    if (search) q = q.or(orIlike([["title", search], ["ticket_number", search]]));
+    return q;
+  }
+
+  const { data: filtered = [], isLoading } = useQuery({
+    queryKey: ["my-tickets", "rows", user?.id, activeTab, priorityFilter, search, pagination.page],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("tickets")
-        .select("*, issue_dept:departments!tickets_issue_department_id_fkey(name), unit:units(name), assigned_profile:profiles!tickets_assigned_to_fkey(name)")
-        .eq("raised_by", user!.id)
-        .order("created_at", { ascending: false });
+      const { data } = await buildTicketsBase()
+        .select(TICKETS_SELECT)
+        .order("created_at", { ascending: false })
+        .range(pagination.range.from, pagination.range.to);
       const ids = (data || []).map((t: any) => t.id);
       const ratingMap = new Map<string, number>();
       if (ids.length) {
@@ -67,27 +86,31 @@ export default function MyTickets() {
     enabled: !!user,
   });
 
-  const counts = useMemo(() => {
-    const all = tickets || [];
-    return {
-      all: all.length,
-      pending: all.filter((t) => ["open", "in_progress", "reopened"].includes(t.status)).length,
-      resolved: all.filter((t) => ["resolved", "closed"].includes(t.status)).length,
-    };
-  }, [tickets]);
+  const { data: filteredCount = 0 } = useQuery({
+    queryKey: ["my-tickets", "count", "rows", user?.id, activeTab, priorityFilter, search],
+    queryFn: async () => {
+      const { count } = await buildTicketsBase().select("id", { head: true, count: "exact" });
+      return count ?? 0;
+    },
+    enabled: !!user,
+  });
 
-  const filtered = useMemo(() => {
-    return (tickets || []).filter((t) => {
-      if (activeTab === "pending" && !["open", "in_progress", "reopened"].includes(t.status)) return false;
-      if (activeTab === "resolved" && !["resolved", "closed"].includes(t.status)) return false;
-      if (priorityFilter !== "all" && (t as any).priority !== priorityFilter) return false;
-      if (search) {
-        const q = search.toLowerCase();
-        if (!t.title.toLowerCase().includes(q) && !t.ticket_number.toLowerCase().includes(q)) return false;
-      }
-      return true;
-    });
-  }, [tickets, activeTab, priorityFilter, search]);
+  // Tab badge counts reflect ALL of the user's tickets per status bucket,
+  // independent of the priority/search refinement — same as before pagination.
+  const { data: counts = { all: 0, pending: 0, resolved: 0 } } = useQuery({
+    queryKey: ["my-tickets", "count", "tabs", user?.id],
+    queryFn: async () => {
+      const [all, pending, resolved] = await Promise.all([
+        supabase.from("tickets").eq("raised_by", user!.id).select("id", { head: true, count: "exact" }),
+        supabase.from("tickets").eq("raised_by", user!.id).in("status", PENDING_STATUSES).select("id", { head: true, count: "exact" }),
+        supabase.from("tickets").eq("raised_by", user!.id).in("status", RESOLVED_STATUSES).select("id", { head: true, count: "exact" }),
+      ]);
+      return { all: all.count ?? 0, pending: pending.count ?? 0, resolved: resolved.count ?? 0 };
+    },
+    enabled: !!user,
+  });
+
+  const pageMeta = buildPageMeta(pagination.page, pagination.pageSize, filteredCount);
 
   const tabs: { key: TabKey; label: string; count: number }[] = [
     { key: "all", label: t("common.all"), count: counts.all },
@@ -309,6 +332,16 @@ export default function MyTickets() {
                   </Card>
                 );
               })}
+            </div>
+          )}
+          {filteredCount > 0 && (
+            <div className="mt-4">
+              <PaginationControls
+                meta={pageMeta}
+                onPageChange={pagination.setPage}
+                isLoading={isLoading}
+                label="tickets"
+              />
             </div>
           )}
         </section>

@@ -21,7 +21,8 @@ export class QueryBuilder<T = any> implements PromiseLike<ApiResult<T>> {
   private action: Action | null = null;
   private selectStr?: string;
   private filters: FilterClause[] = [];
-  private orFilter?: string;
+  /** Each call to .or() adds an independent OR-group, ANDed with the rest. */
+  private orFilters: string[] = [];
   private orders: OrderSpec[] = [];
   private _limit?: number;
   private _offset?: number;
@@ -93,7 +94,7 @@ export class QueryBuilder<T = any> implements PromiseLike<ApiResult<T>> {
     return this.addFilter(c, `not.${op}`, v);
   }
   or(filterStr: string) {
-    this.orFilter = filterStr;
+    this.orFilters.push(filterStr);
     return this;
   }
   filter(c: string, op: string, v: unknown) { return this.addFilter(c, op, v); }
@@ -119,7 +120,7 @@ export class QueryBuilder<T = any> implements PromiseLike<ApiResult<T>> {
       action: this.action ?? 'select',
       select: this.selectStr,
       filters: this.filters,
-      or: this.orFilter,
+      or: this.orFilters.length ? this.orFilters : undefined,
       order: this.orders,
       limit: this._limit,
       offset: this._offset,

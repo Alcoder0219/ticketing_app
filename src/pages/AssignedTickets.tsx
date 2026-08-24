@@ -27,16 +27,40 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useDeleteTicket } from "@/hooks/useDeleteTicket";
-import { AgingBadge, computeAgingDaysForTicket } from "@/components/AgingBadge";
-import { AGING_FILTER_OPTIONS, matchesAgingFilter, type AgingFilterValue } from "@/lib/aging";
+import { AgingBadge } from "@/components/AgingBadge";
+import { AGING_FILTER_OPTIONS, type AgingFilterValue } from "@/lib/aging";
 import { useTicketsRealtime } from "@/hooks/useTicketsRealtime";
+import { usePagination } from "@/hooks/usePagination";
+import { buildPageMeta } from "@/lib/pagination";
+import { PaginationControls } from "@/components/PaginationControls";
+import { orIlike } from "@/lib/searchFilter";
 
 const statuses = ["open", "in_progress", "resolved", "closed", "reopened"];
+
+const ASSIGNED_SELECT =
+  "*, issue_dept:departments!tickets_issue_department_id_fkey(name), raiser:profiles!tickets_raised_by_fkey(name), assignee:profiles!tickets_assigned_to_fkey(name), unit:units(name)";
+
+/** Aging buckets approximated from created_at alone — see PendingTickets.tsx for rationale. */
+function applyAgingFilter(q: any, filter: AgingFilterValue) {
+  if (filter === "all") return q;
+  const now = Date.now();
+  const cutoff = (days: number) => new Date(now - days * 86400000).toISOString();
+  switch (filter) {
+    case "0-2":
+      return q.gte("created_at", cutoff(3));
+    case "3-7":
+      return q.gte("created_at", cutoff(8)).lt("created_at", cutoff(3));
+    case "8-14":
+      return q.gte("created_at", cutoff(15)).lt("created_at", cutoff(8));
+    case "15+":
+      return q.lt("created_at", cutoff(15));
+  }
+}
 
 export default function AssignedTickets() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { user, profile, role } = useAuth();
+  const { user, profile, role, allowedUnitIds } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -53,26 +77,71 @@ export default function AssignedTickets() {
   const isSuperOrAdmin = role === "super_admin" || role === "admin";
   const { isSuperAdmin, deleteTicket } = useDeleteTicket();
 
-  const { data: tickets, isLoading } = useQuery({
-    queryKey: ["assigned-tickets", user?.id, role, profile?.department_id],
+  const filterKey = JSON.stringify({ statusFilter, deptFilter, assigneeFilter, unitFilter, agingFilter, search });
+  const pagination = usePagination({ resetKey: filterKey });
+
+  /** Role scoping + status/dept/assignee/unit/aging/search filters, shared by rows and count. */
+  function buildTicketsBase() {
+    let q: any = supabase.from("tickets").not("assigned_to", "is", null);
+    if (isTeamMember) {
+      q = q.eq("assigned_to", user!.id);
+    } else if (isHOD && profile?.department_id) {
+      q = q.eq("issue_department_id", profile.department_id);
+    }
+    // admin/super_admin see all
+    if (statusFilter !== "all") q = q.eq("status", statusFilter);
+    if (deptFilter !== "all") q = q.eq("issue_department_id", deptFilter);
+    if (assigneeFilter !== "all") q = q.eq("assigned_to", assigneeFilter);
+    if (unitFilter !== "all") q = q.eq("unit_id", unitFilter);
+    q = applyAgingFilter(q, agingFilter);
+    if (search) q = q.or(orIlike([["title", search], ["ticket_number", search]]));
+    return q;
+  }
+
+  // For the HOD grouped-by-assignee view, sort by assignee first so each
+  // assignee's tickets stay contiguous within a page as much as possible.
+  const { data: tickets = [], isLoading } = useQuery({
+    queryKey: ["assigned-tickets", "rows", user?.id, role, profile?.department_id, statusFilter, deptFilter, assigneeFilter, unitFilter, agingFilter, search, pagination.page],
     queryFn: async () => {
-      let query = supabase
-        .from("tickets")
-        .select("*, issue_dept:departments!tickets_issue_department_id_fkey(name), raiser:profiles!tickets_raised_by_fkey(name), assignee:profiles!tickets_assigned_to_fkey(name), unit:units(name)")
-        .not("assigned_to", "is", null)
-        .order("created_at", { ascending: false });
-
-      if (isTeamMember) {
-        query = query.eq("assigned_to", user!.id);
-      } else if (isHOD && profile?.department_id) {
-        query = query.eq("issue_department_id", profile.department_id);
-      }
-      // admin/super_admin see all
-
-      const { data } = await query;
+      let q = buildTicketsBase().select(ASSIGNED_SELECT);
+      if (isHOD) q = q.order("assigned_to", { ascending: true });
+      q = q.order("created_at", { ascending: false }).range(pagination.range.from, pagination.range.to);
+      const { data } = await q;
       return data || [];
     },
     enabled: !!user,
+  });
+
+  const { data: filteredCount = 0 } = useQuery({
+    queryKey: ["assigned-tickets", "count", user?.id, role, profile?.department_id, statusFilter, deptFilter, assigneeFilter, unitFilter, agingFilter, search],
+    queryFn: async () => {
+      const { count } = await buildTicketsBase().select("id", { head: true, count: "exact" });
+      return count ?? 0;
+    },
+    enabled: !!user,
+  });
+
+  // Assigned-count / overdue summary bar for the team-member view — scoped
+  // the same as the role filter above, independent of the UI filters.
+  const { data: summary = { total: 0, overdue: 0 } } = useQuery({
+    queryKey: ["assigned-tickets", "summary", user?.id, isTeamMember],
+    queryFn: async () => {
+      let base: any = supabase.from("tickets").not("assigned_to", "is", null).eq("assigned_to", user!.id);
+      const nowIso = new Date().toISOString();
+      const [totalRes, overdueRes] = await Promise.all([
+        base.select("id", { head: true, count: "exact" }),
+        supabase
+          .from("tickets")
+          .not("assigned_to", "is", null)
+          .eq("assigned_to", user!.id)
+          .not("target_date", "is", null)
+          .lt("target_date", nowIso)
+          .not("status", "in", "(resolved,closed)")
+          .select("id", { head: true, count: "exact" }),
+      ]);
+      return { total: totalRes.count ?? 0, overdue: overdueRes.count ?? 0 };
+    },
+    enabled: isTeamMember && !!user,
   });
 
   // Team members for HOD reassign
@@ -86,6 +155,35 @@ export default function AssignedTickets() {
       return profiles || [];
     },
     enabled: (isHOD || isSuperOrAdmin) && !!profile?.department_id,
+  });
+
+  // Dropdown options sourced from small reference tables/roles instead of
+  // scanning the (now-paginated) ticket list — scan-free at any scale.
+  const { data: departments } = useQuery({
+    queryKey: ["departments-active"],
+    queryFn: async () => {
+      const { data } = await supabase.from("departments").select("id,name").eq("is_active", true).order("name");
+      return data || [];
+    },
+  });
+  const { data: units } = useQuery({
+    queryKey: ["units-active", allowedUnitIds?.join(",") ?? "all"],
+    queryFn: async () => {
+      let q = supabase.from("units").select("id,name").order("name");
+      if (allowedUnitIds) q = q.in("id", allowedUnitIds.length ? allowedUnitIds : ["__none__"]);
+      const { data } = await q;
+      return data || [];
+    },
+  });
+  const { data: assignableUsers } = useQuery({
+    queryKey: ["assignable-users"],
+    queryFn: async () => {
+      const { data: roles } = await supabase.from("user_roles").select("user_id").eq("role", "assigned_person");
+      const ids = Array.from(new Set((roles || []).map((r: any) => r.user_id)));
+      if (!ids.length) return [];
+      const { data } = await supabase.from("profiles").select("user_id,name").in("user_id", ids).order("name");
+      return data || [];
+    },
   });
 
   const reassignMutation = useMutation({
@@ -117,23 +215,13 @@ export default function AssignedTickets() {
     },
   });
 
-  const allTickets = tickets || [];
-  const deptOptions = Array.from(new Set(allTickets.map(t => (t as any).issue_dept?.name).filter(Boolean))) as string[];
-  const assigneeOptions = Array.from(new Set(allTickets.map(t => (t as any).assignee?.name).filter(Boolean))) as string[];
-  const unitOptions = Array.from(new Set(allTickets.map(t => (t as any).unit?.name).filter(Boolean))) as string[];
-  const filtered = allTickets.filter((t) => {
-    if (statusFilter !== "all" && t.status !== statusFilter) return false;
-    if (deptFilter !== "all" && (t as any).issue_dept?.name !== deptFilter) return false;
-    if (assigneeFilter !== "all" && (t as any).assignee?.name !== assigneeFilter) return false;
-    if (unitFilter !== "all" && (t as any).unit?.name !== unitFilter) return false;
-    if (agingFilter !== "all" && !matchesAgingFilter(computeAgingDaysForTicket(t as any), agingFilter)) return false;
-    if (search && !t.title.toLowerCase().includes(search.toLowerCase()) && !t.ticket_number.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
+  const filtered = tickets;
+  const pageMeta = buildPageMeta(pagination.page, pagination.pageSize, filteredCount);
 
-  const overdueCount = allTickets.filter(t => t.target_date && new Date(t.target_date) < new Date() && !["closed", "resolved"].includes(t.status)).length;
-
-  // HOD view: group by assignee
+  // HOD view: group the current page's rows by assignee. Sorted by
+  // assigned_to server-side above, so groups stay contiguous within a page
+  // as much as possible — but a given assignee's tickets can still split
+  // across a page boundary, an inherent tradeoff of true server pagination.
   const groupedByAssignee: Record<string, typeof filtered> = {};
   if (isHOD) {
     filtered.forEach(t => {
@@ -217,10 +305,10 @@ export default function AssignedTickets() {
         {/* Summary bar for team member */}
         {isTeamMember && (
           <div className="flex items-center gap-4 p-3 rounded-lg bg-primary/5 border border-primary/20">
-            <span className="text-sm font-medium">{t("ticket.assignedCount", { count: allTickets.length })}</span>
-            {overdueCount > 0 && (
+            <span className="text-sm font-medium">{t("ticket.assignedCount", { count: summary.total })}</span>
+            {summary.overdue > 0 && (
               <span className="flex items-center gap-1 text-sm text-destructive font-medium">
-                <AlertTriangle className="h-3.5 w-3.5" /> {t("ticket.overdueCount", { count: overdueCount })}
+                <AlertTriangle className="h-3.5 w-3.5" /> {t("ticket.overdueCount", { count: summary.overdue })}
               </span>
             )}
           </div>
@@ -250,8 +338,8 @@ export default function AssignedTickets() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t("common.allDepartments")}</SelectItem>
-              {deptOptions.map((d) => (
-                <SelectItem key={d} value={d}>{d}</SelectItem>
+              {(departments || []).map((d: any) => (
+                <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -262,8 +350,8 @@ export default function AssignedTickets() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t("common.allAssignees")}</SelectItem>
-              {assigneeOptions.map((a) => (
-                <SelectItem key={a} value={a}>{a}</SelectItem>
+              {(assignableUsers || []).map((a: any) => (
+                <SelectItem key={a.user_id} value={a.user_id}>{a.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -274,8 +362,8 @@ export default function AssignedTickets() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t("common.allUnits")}</SelectItem>
-              {unitOptions.map((u) => (
-                <SelectItem key={u} value={u}>{u}</SelectItem>
+              {(units || []).map((u: any) => (
+                <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -297,7 +385,7 @@ export default function AssignedTickets() {
           <div className="flex justify-center py-12">
             <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
           </div>
-        ) : filtered.length === 0 ? (
+        ) : filteredCount === 0 ? (
           <Card className="border shadow-sm">
             <CardContent className="flex flex-col items-center justify-center py-16 text-center">
               <ClipboardList className="h-12 w-12 text-muted-foreground/40 mb-3" />
@@ -334,6 +422,14 @@ export default function AssignedTickets() {
               {filtered.map(t => renderTicketCard(t, isHOD || isSuperOrAdmin))}
             </CardContent>
           </Card>
+        )}
+        {filteredCount > 0 && (
+          <PaginationControls
+            meta={pageMeta}
+            onPageChange={pagination.setPage}
+            isLoading={isLoading}
+            label="tickets"
+          />
         )}
       </div>
     </AppLayout>

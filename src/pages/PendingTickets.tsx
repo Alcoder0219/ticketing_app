@@ -23,10 +23,39 @@ import { Search, Clock, UserPlus, Trash2 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useToast } from "@/hooks/use-toast";
 import { useDeleteTicket } from "@/hooks/useDeleteTicket";
-import { AgingBadge, computeAgingDaysForTicket } from "@/components/AgingBadge";
-import { AGING_FILTER_OPTIONS, matchesAgingFilter, type AgingFilterValue } from "@/lib/aging";
+import { AgingBadge } from "@/components/AgingBadge";
+import { AGING_FILTER_OPTIONS, type AgingFilterValue } from "@/lib/aging";
 import { useTicketsRealtime } from "@/hooks/useTicketsRealtime";
 import { formatDate } from "@/utils/dateFormat";
+import { usePagination } from "@/hooks/usePagination";
+import { buildPageMeta } from "@/lib/pagination";
+import { PaginationControls } from "@/components/PaginationControls";
+import { orIlike } from "@/lib/searchFilter";
+
+const PENDING_SELECT =
+  "*, issue_dept:departments!tickets_issue_department_id_fkey(name), raiser:profiles!tickets_raised_by_fkey(name)";
+
+/**
+ * Aging buckets approximated from created_at alone (no closed_at fallback).
+ * Exact for this page: Pending Tickets only ever shows open/reopened tickets,
+ * which are never closed, so "days since created" is already the correct
+ * aging measure the client-side version computed too.
+ */
+function applyAgingFilter(q: any, filter: AgingFilterValue) {
+  if (filter === "all") return q;
+  const now = Date.now();
+  const cutoff = (days: number) => new Date(now - days * 86400000).toISOString();
+  switch (filter) {
+    case "0-2":
+      return q.gte("created_at", cutoff(3));
+    case "3-7":
+      return q.gte("created_at", cutoff(8)).lt("created_at", cutoff(3));
+    case "8-14":
+      return q.gte("created_at", cutoff(15)).lt("created_at", cutoff(8));
+    case "15+":
+      return q.lt("created_at", cutoff(15));
+  }
+}
 
 export default function PendingTickets() {
   const { t } = useTranslation();
@@ -38,20 +67,15 @@ export default function PendingTickets() {
   const [agingFilter, setAgingFilter] = useState<AgingFilterValue>("all");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
 
+  const filterKey = JSON.stringify({ agingFilter, departmentFilter, search });
+  const pagination = usePagination({ resetKey: filterKey });
+
+  // All active departments (not just ones with a current pending ticket) —
+  // scan-free at any ticket-table scale.
   const { data: departments } = useQuery({
-    queryKey: ["departments-with-tickets"],
+    queryKey: ["departments-active"],
     queryFn: async () => {
-      const { data: ticketDepts } = await supabase
-        .from("tickets")
-        .select("issue_department_id")
-        .not("issue_department_id", "is", null);
-      const ids = Array.from(new Set((ticketDepts || []).map((t: any) => t.issue_department_id)));
-      if (ids.length === 0) return [];
-      const { data } = await supabase
-        .from("departments")
-        .select("id, name")
-        .in("id", ids)
-        .order("name");
+      const { data } = await supabase.from("departments").select("id,name").eq("is_active", true).order("name");
       return data || [];
     },
   });
@@ -62,24 +86,38 @@ export default function PendingTickets() {
 
   useTicketsRealtime([["pending-tickets"]]);
 
-  const { data: tickets, isLoading } = useQuery({
-    queryKey: ["pending-tickets", user?.id, role, profile?.department_id],
+  /** Role scoping + department/aging/search filters, shared by rows and count. */
+  function buildTicketsBase() {
+    let q: any = supabase.from("tickets").in("status", ["open", "reopened"]);
+    if (role === "user") {
+      q = q.eq("raised_by", user!.id);
+    } else if ((role === "assigned_person" || isHOD) && profile?.department_id) {
+      q = q.eq("issue_department_id", profile.department_id);
+    }
+    // admin/super_admin see all
+    if (departmentFilter !== "all") q = q.eq("issue_department_id", departmentFilter);
+    q = applyAgingFilter(q, agingFilter);
+    if (search) q = q.or(orIlike([["title", search], ["ticket_number", search]]));
+    return q;
+  }
+
+  const { data: tickets = [], isLoading } = useQuery({
+    queryKey: ["pending-tickets", "rows", user?.id, role, profile?.department_id, agingFilter, departmentFilter, search, pagination.page],
     queryFn: async () => {
-      let query = supabase
-        .from("tickets")
-        .select("*, issue_dept:departments!tickets_issue_department_id_fkey(name), raiser:profiles!tickets_raised_by_fkey(name)")
-        .in("status", ["open", "reopened"])
-        .order("created_at", { ascending: false });
-
-      if (role === "user") {
-        query = query.eq("raised_by", user!.id);
-      } else if ((role === "assigned_person" || isHOD) && profile?.department_id) {
-        query = query.eq("issue_department_id", profile.department_id);
-      }
-      // admin/super_admin see all
-
-      const { data } = await query;
+      const { data } = await buildTicketsBase()
+        .select(PENDING_SELECT)
+        .order("created_at", { ascending: false })
+        .range(pagination.range.from, pagination.range.to);
       return data || [];
+    },
+    enabled: !!user,
+  });
+
+  const { data: filteredCount = 0 } = useQuery({
+    queryKey: ["pending-tickets", "count", user?.id, role, profile?.department_id, agingFilter, departmentFilter, search],
+    queryFn: async () => {
+      const { count } = await buildTicketsBase().select("id", { head: true, count: "exact" });
+      return count ?? 0;
     },
     enabled: !!user,
   });
@@ -140,12 +178,8 @@ export default function PendingTickets() {
     },
   });
 
-  const filtered = (tickets || []).filter((t) => {
-    if (agingFilter !== "all" && !matchesAgingFilter(computeAgingDaysForTicket(t as any), agingFilter)) return false;
-    if (departmentFilter !== "all" && (t as any).issue_department_id !== departmentFilter) return false;
-    if (search && !t.title.toLowerCase().includes(search.toLowerCase()) && !t.ticket_number.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  });
+  const filtered = tickets;
+  const pageMeta = buildPageMeta(pagination.page, pagination.pageSize, filteredCount);
 
   return (
     <AppLayout title={t("nav.pendingTickets")}>
@@ -178,7 +212,7 @@ export default function PendingTickets() {
           </Select>
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted text-sm">
             <Clock className="h-4 w-4 text-warning" />
-            <span>{filtered.length} {t("status.pending").toLowerCase()}</span>
+            <span>{filteredCount} {t("status.pending").toLowerCase()}</span>
           </div>
         </div>
 
@@ -186,7 +220,7 @@ export default function PendingTickets() {
           <div className="flex justify-center py-12">
             <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
           </div>
-        ) : filtered.length === 0 ? (
+        ) : filteredCount === 0 ? (
           <Card className="border shadow-sm">
             <CardContent className="flex flex-col items-center justify-center py-16 text-center">
               <Clock className="h-12 w-12 text-muted-foreground/40 mb-3" />
@@ -267,6 +301,14 @@ export default function PendingTickets() {
               </CardContent>
             </Card>
           ))
+        )}
+        {filteredCount > 0 && (
+          <PaginationControls
+            meta={pageMeta}
+            onPageChange={pagination.setPage}
+            isLoading={isLoading}
+            label="tickets"
+          />
         )}
       </div>
     </AppLayout>

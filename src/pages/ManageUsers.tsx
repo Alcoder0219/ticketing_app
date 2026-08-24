@@ -28,6 +28,10 @@ import { useToast } from "@/hooks/use-toast";
 import type { AppRole } from "@/integrations/api/types";
 import { BulkImportUsersDialog } from "@/components/BulkImportUsersDialog";
 import { useAuth } from "@/contexts/AuthContext";
+import { usePagination } from "@/hooks/usePagination";
+import { buildPageMeta } from "@/lib/pagination";
+import { PaginationControls } from "@/components/PaginationControls";
+import { orIlike } from "@/lib/searchFilter";
 
 const baseRoleLabels: Record<string, string> = {
   super_admin: "Super Admin",
@@ -101,17 +105,12 @@ export default function ManageUsers() {
   const [showPassword, setShowPassword] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
 
-  const { data: profiles, isLoading } = useQuery({
-    queryKey: ["all-profiles"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("*").order("name");
-      if (error) throw error;
-      return data;
-    },
-    refetchOnWindowFocus: false,
-    refetchInterval: false,
-  });
+  const filterKey = JSON.stringify({ search, allowedUnitIds });
+  const pagination = usePagination({ resetKey: filterKey });
 
+  // Headcount-bounded (organization size, not ticket volume), so a single
+  // unpaginated fetch is fine — it's reference data for the role lookup map
+  // AND the source of the "which users still have an active role" id set.
   const { data: userRoles, isLoading: rolesLoading } = useQuery({
     queryKey: ["all-user-roles"],
     queryFn: async () => {
@@ -121,6 +120,40 @@ export default function ManageUsers() {
     },
     refetchOnWindowFocus: false,
     refetchInterval: false,
+  });
+
+  const activeUserIds = (userRoles || []).map((r: any) => r.user_id);
+
+  /** Active-role + plant-access + search filters, shared by rows and count. */
+  function buildProfilesBase() {
+    let q: any = supabase.from("profiles").in("user_id", activeUserIds.length ? activeUserIds : ["__none__"]);
+    if (allowedUnitIds) q = q.in("unit_id", allowedUnitIds.length ? allowedUnitIds : ["__none__"]);
+    if (search) q = q.or(orIlike([["name", search], ["username", search], ["employee_id", search]]));
+    return q;
+  }
+
+  const { data: profiles = [], isLoading } = useQuery({
+    queryKey: ["all-profiles", "rows", search, allowedUnitIds?.join(","), activeUserIds.join(","), pagination.page],
+    queryFn: async () => {
+      const { data, error } = await buildProfilesBase()
+        .select("*")
+        .order("name")
+        .range(pagination.range.from, pagination.range.to);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!userRoles,
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
+  });
+
+  const { data: filteredCount = 0 } = useQuery({
+    queryKey: ["all-profiles", "count", search, allowedUnitIds?.join(","), activeUserIds.join(",")],
+    queryFn: async () => {
+      const { count } = await buildProfilesBase().select("id", { head: true, count: "exact" });
+      return count ?? 0;
+    },
+    enabled: !!userRoles,
   });
 
   const { data: departments } = useQuery({
@@ -195,22 +228,8 @@ export default function ManageUsers() {
     return (found?.role as AppRole) || "user";
   };
 
-  const filtered = profiles?.filter((p) => {
-    // Soft-deleted/deactivated users keep their profile for audit history but lose all roles.
-    // Hide them from User Management so they do not reappear after cache refresh/page reload.
-    if (userRoles && !userRoles.some((r) => r.user_id === p.user_id)) return false;
-
-    // Plant access restriction: hide users whose unit isn't allowed for the viewer's role.
-    if (allowedUnitIds && p.unit_id && !allowedUnitIds.includes(p.unit_id)) return false;
-    if (allowedUnitIds && !p.unit_id) return false;
-
-    const term = search.toLowerCase();
-    return (
-      p.name.toLowerCase().includes(term) ||
-      p.username?.toLowerCase().includes(term) ||
-      p.employee_id?.toLowerCase().includes(term)
-    );
-  });
+  const filtered = profiles;
+  const pageMeta = buildPageMeta(pagination.page, pagination.pageSize, filteredCount);
 
   const handleAddUser = async () => {
     if (!form.name || !form.email || !form.password) {
@@ -300,17 +319,10 @@ export default function ManageUsers() {
         }
       }
 
-      // Update cache directly with confirmed DB values â€” no refetch (would race & revert).
-      queryClient.setQueryData(["all-profiles"], (old: any[] | undefined) =>
-        old?.map((p) => (p.user_id === selectedUser.user_id ? { ...p, ...profileData[0] } : p))
-      );
-      queryClient.setQueryData(["all-user-roles"], (old: any[] | undefined) => {
-        if (!old) return old;
-        const exists = old.some((r) => r.user_id === selectedUser.user_id);
-        return exists
-          ? old.map((r) => (r.user_id === selectedUser.user_id ? { ...r, role: form.role } : r))
-          : [...old, { user_id: selectedUser.user_id, role: form.role, id: crypto.randomUUID() }];
-      });
+      // Refetch rather than patch the cache directly: profiles/roles are now
+      // fetched per-page, so a targeted patch can't reliably find the right
+      // cache entry the way a single unpaginated cache could.
+      invalidateAll();
 
       // Update email/password via edge function if provided
       if ((form.email && form.email.trim()) || (form.password && form.password.length > 0)) {
@@ -345,18 +357,6 @@ export default function ManageUsers() {
     if (!selectedUser) return;
     setFormLoading(true);
 
-    // Snapshot for rollback if the server rejects
-    const prevProfiles = queryClient.getQueryData<any[]>(["all-profiles"]);
-    const prevRoles = queryClient.getQueryData<any[]>(["all-user-roles"]);
-
-    // Optimistically remove from cache immediately
-    queryClient.setQueryData(["all-profiles"], (old: any[] | undefined) =>
-      old?.filter((p) => p.user_id !== selectedUser.user_id)
-    );
-    queryClient.setQueryData(["all-user-roles"], (old: any[] | undefined) =>
-      old?.filter((r) => r.user_id !== selectedUser.user_id)
-    );
-
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(`${apiBase()}/functions/v1/admin-delete-user`, {
@@ -370,8 +370,10 @@ export default function ManageUsers() {
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Failed to delete user");
 
-      // DO NOT invalidate here â€” soft-deleted users still exist in `profiles` and would
-      // reappear in the list. The optimistic removal above is the source of truth.
+      // Both delete modes remove the user's user_roles row server-side, so a
+      // fresh fetch's active-role id set naturally excludes them — no need
+      // to patch the cache manually.
+      invalidateAll();
       toast({
         title: result.mode === "deactivated" ? "User deactivated" : "User deleted",
         description: result.mode === "deactivated"
@@ -381,9 +383,6 @@ export default function ManageUsers() {
       setDeleteOpen(false);
       setSelectedUser(null);
     } catch (err: any) {
-      // Roll back optimistic removal so the row reappears
-      queryClient.setQueryData(["all-profiles"], prevProfiles);
-      queryClient.setQueryData(["all-user-roles"], prevRoles);
       toast({ title: t("messages.deleteFailed"), description: err?.message || t("manageUsers.unknownError"), variant: "destructive" });
     } finally {
       setFormLoading(false);
@@ -443,7 +442,7 @@ export default function ManageUsers() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
-              <Shield className="h-4 w-4" /> All Users ({filtered?.length || 0})
+              <Shield className="h-4 w-4" /> All Users ({filteredCount})
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -466,7 +465,7 @@ export default function ManageUsers() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filtered?.map((p) => {
+                    {filtered.map((p) => {
                       const currentRole = getRoleForUser(p.user_id);
                       return (
                         <TableRow key={p.id} className="hover:bg-muted/50">
@@ -501,13 +500,23 @@ export default function ManageUsers() {
                         </TableRow>
                       );
                     })}
-                    {filtered?.length === 0 && (
+                    {filteredCount === 0 && (
                       <TableRow>
                         <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">{t("manageUsers.noUsers")}</TableCell>
                       </TableRow>
                     )}
                   </TableBody>
                 </Table>
+              </div>
+            )}
+            {filteredCount > 0 && (
+              <div className="mt-4">
+                <PaginationControls
+                  meta={pageMeta}
+                  onPageChange={pagination.setPage}
+                  isLoading={isLoading}
+                  label="users"
+                />
               </div>
             )}
           </CardContent>

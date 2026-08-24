@@ -20,7 +20,8 @@ interface QueryBody {
   action: 'select' | 'insert' | 'update' | 'delete' | 'upsert';
   select?: string;
   filters?: FilterClause[];
-  or?: string;
+  /** One or more OR-groups; multiple groups are ANDed together. */
+  or?: string | string[];
   order?: { column: string; ascending?: boolean; nullsFirst?: boolean }[];
   limit?: number;
   offset?: number;
@@ -40,7 +41,8 @@ interface QueryBody {
 function buildFilter(body: QueryBody): Record<string, any> {
   const and: Record<string, any>[] = [];
   for (const c of body.filters ?? []) and.push(clauseToMongo(c));
-  if (body.or) and.push({ $or: parseOrString(body.or) });
+  const orGroups = Array.isArray(body.or) ? body.or : body.or ? [body.or] : [];
+  for (const orStr of orGroups) and.push({ $or: parseOrString(orStr) });
   if (and.length === 0) return {};
   if (and.length === 1) return and[0];
   return { $and: and };
