@@ -59,7 +59,7 @@ export const env = {
     ),
     serviceAccountKeyPath: process.env.GMAIL_SERVICE_ACCOUNT_KEY_PATH || '',
     /** The Workspace user the service account impersonates. */
-    impersonateUser: process.env.GMAIL_IMPERSONATE_USER || 'itdesk@amsonsgroup.net',
+    impersonateUser: process.env.GMAIL_IMPERSONATE_USER || 'alert@amsonsgroup.net',
     /** Minimum scope for sending. Do not widen without a reason. */
     scopes: ['https://www.googleapis.com/auth/gmail.send'],
     /**
@@ -67,7 +67,7 @@ export const env = {
      * rewrites or rejects a From it has not authorised. Only the display name
      * is free text.
      */
-    from: process.env.EMAIL_FROM || process.env.GMAIL_FROM || 'Amsons Group Support <itdesk@amsonsgroup.net>',
+    from: process.env.EMAIL_FROM || process.env.GMAIL_FROM || 'Amsons Group Support <alert@amsonsgroup.net>',
   },
 
   // Cloudinary (server-side only; api secret never leaves the backend)
