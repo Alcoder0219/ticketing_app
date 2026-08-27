@@ -52,7 +52,11 @@ const ROLE_LABEL_TO_KEY: Record<string, string> = {
   "pc": "pc",
 };
 
-const ACCEPTED_UNITS = ["Manesar", "Bilaspur", "Chennai", "Corporate"];
+export const normalizeValue = (value: string) =>
+  String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
 
 const TEMPLATE_HEADERS = [
   "Full Name", "Email", "Username", "Password", "Employee ID", "Contact", "Role", "Department", "Unit",
@@ -180,6 +184,9 @@ export function BulkImportUsersDialog({ open, onOpenChange, departments, units, 
         (existingProfiles || []).map((p: any) => (p.employee_id || "").toString().trim().toLowerCase()).filter(Boolean)
       );
 
+      // Build a normalized lookup of currently configured units (live from DB, not a stale/hardcoded list)
+      const unitMap = new Map(units.map((u) => [normalizeValue(u.name), u]));
+
       const errors: string[] = [];
       const seenEmails = new Set<string>();
       const seenEmpIds = new Set<string>();
@@ -199,11 +206,11 @@ export function BulkImportUsersDialog({ open, onOpenChange, departments, units, 
         if (!roleKey) rowErrs.push(`Invalid role value '${roleLabel}'`);
 
         let unitId: string | null = null;
-        if (!unitName || !ACCEPTED_UNITS.map((u) => u.toLowerCase()).includes(unitName.toLowerCase())) {
-          rowErrs.push(`Invalid unit value '${unitName}'`);
+        if (!unitName) {
+          rowErrs.push("Unit is empty");
         } else {
-          const u = units.find((x) => x.name.toLowerCase() === unitName.toLowerCase());
-          if (!u) rowErrs.push(`Unit '${unitName}' not configured in system`);
+          const u = unitMap.get(normalizeValue(unitName));
+          if (!u) rowErrs.push(`Invalid unit value '${unitName}'`);
           else unitId = u.id;
         }
 
@@ -370,7 +377,9 @@ export function BulkImportUsersDialog({ open, onOpenChange, departments, units, 
                 </div>
                 <div>
                   <span className="font-medium">Unit:</span>{" "}
-                  <span className="text-muted-foreground">{ACCEPTED_UNITS.join(", ")}</span>
+                  <span className="text-muted-foreground">
+                    {units.length ? units.map((u) => u.name).join(", ") : "No units configured yet"}
+                  </span>
                 </div>
               </CardContent>
             </Card>
