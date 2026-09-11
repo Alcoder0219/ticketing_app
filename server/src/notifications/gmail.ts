@@ -325,6 +325,7 @@ export function htmlToText(html: string): string {
 
 export interface SendOptions {
   to: string | string[];
+  cc?: string | string[];
   subject: string;
   html?: string;
   text?: string;
@@ -346,6 +347,7 @@ async function buildRawMessage(opts: SendOptions): Promise<string> {
   const mail = new MailComposer({
     from: opts.from,
     to: asAddressList(opts.to),
+    cc: asAddressList(opts.cc),
     subject: opts.subject,
     html: opts.html || undefined,
     // Plain-text fallback so a text-only client never receives an empty body.
@@ -390,7 +392,8 @@ export async function sendEmail(opts: SendOptions): Promise<SendResult> {
     const raw = await buildRawMessage({ ...opts, from: opts.from || env.gmail.from });
     const { data } = await gmail.users.messages.send({ userId: 'me', requestBody: { raw } });
 
-    console.log(`[gmail] sent "${opts.subject}" → ${recipients} id=${data.id}`);
+    const ccList = asAddressList(opts.cc);
+    console.log(`[gmail] sent "${opts.subject}" → ${recipients}${ccList ? ` cc=${ccList}` : ''} id=${data.id}`);
     return { ok: true, messageId: data.id ?? undefined, to: recipients };
   } catch (error) {
     const message = safeErrorMessage(error);

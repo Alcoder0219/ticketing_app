@@ -296,7 +296,12 @@
     "deptRequiredDesc": "Tafadhali chagua idara ya tatizo.",
     "createFailed": "Imeshindwa kuunda tiketi",
     "createdTitle": "Tiketi Imeundwa",
-    "createdDesc": "Tiketi yako imewasilishwa kwa mafanikio."
+    "createdDesc": "Tiketi yako imewasilishwa kwa mafanikio.",
+    "ccEmail": "Barua pepe ya CC",
+    "optional": "Si Lazima",
+    "ccPlaceholder": "Ingiza anwani za barua pepe za Amsons Group...",
+    "ccInvalidEmail": "Tafadhali ingiza anwani sahihi ya barua pepe.",
+    "ccDomainNotAllowed": "Ni anwani za barua pepe za @amsonsgroup.net pekee zinazoruhusiwa."
   },
   "pcReview": {
     "title": "Ukaguzi wa PC",

@@ -11,6 +11,7 @@ import {
   notifyTicketUpdated,
   notifyRatingSubmitted,
   verifyRatingToken,
+  sanitizeCcEmails,
 } from '../notifications/service.js';
 
 export const restRouter = Router();
@@ -218,6 +219,15 @@ restRouter.post('/query', requireAuth, async (req, res) => {
         }
       }
 
+      // CC recipients are restricted to the Amsons Group domain — the frontend
+      // already filters these, but the backend never trusts that: any external
+      // or malformed address is dropped before the ticket is ever written.
+      if (body.table === 'tickets') {
+        for (const value of input) {
+          value.cc_emails = sanitizeCcEmails(value.cc_emails);
+        }
+      }
+
       const created = await model.insertMany(input.map(stripId), { rawResult: false });
       created.forEach((d) => emitChange(body.table, 'INSERT', d.toJSON()));
 
@@ -250,6 +260,9 @@ restRouter.post('/query', requireAuth, async (req, res) => {
       const updateFilter = mergeFilters(userFilter, authFilterFor(body.table, ctx));
       const toUpdate = await model.find(updateFilter);
       const isTicket = body.table === 'tickets';
+      if (isTicket && 'cc_emails' in values) {
+        values.cc_emails = sanitizeCcEmails(values.cc_emails);
+      }
       for (const doc of toUpdate) {
         // Snapshot before mutating so the notifier can tell what actually
         // changed — an assignment mail must not fire when only a remark moved.

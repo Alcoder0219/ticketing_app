@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/api/client";
 import { useQuery } from "@tanstack/react-query";
 import { AttachmentDropzone, AttachmentItem } from "@/components/AttachmentDropzone";
 import { VoiceDescriptionInput } from "@/components/VoiceDescriptionInput";
+import { CcEmailInput } from "@/components/CcEmailInput";
 
 export default function CreateTicket() {
   const { t } = useTranslation();
@@ -32,6 +33,7 @@ export default function CreateTicket() {
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
   const [voiceDuration, setVoiceDuration] = useState<number>(0);
+  const [ccEmails, setCcEmails] = useState<string[]>([]);
 
   const { data: units } = useQuery({
     queryKey: ["units"],
@@ -77,6 +79,7 @@ export default function CreateTicket() {
         raised_by: user.id,
         priority: priority as any,
         ticket_number: "TEMP",
+        cc_emails: ccEmails,
       })
       .select("id")
       .single();
@@ -217,6 +220,11 @@ export default function CreateTicket() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>{t("createTicket.ccEmail")} ({t("createTicket.optional")})</Label>
+                <CcEmailInput value={ccEmails} onChange={setCcEmails} disabled={isSubmitting} />
               </div>
 
               <div className="space-y-2">

@@ -267,6 +267,7 @@ const tickets = new Schema(
     attachments: { type: Mixed, default: [] },
     resolution_photos: { type: Mixed, default: [] },
     photo_url: { type: String, default: null },
+    cc_emails: { type: [String], default: [] },
     voice_recording_url: { type: String, default: null },
     voice_recording_duration: { type: Number, default: null },
     remarks: { type: String, default: null },

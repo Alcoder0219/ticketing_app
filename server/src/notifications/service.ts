@@ -46,6 +46,36 @@ export type EventType = (typeof EVENTS)[keyof typeof EVENTS];
 const TERMINAL_STATUSES = new Set(['resolved', 'closed']);
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CC email validation
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Only this domain may be CC'd on a ticket — never trust the caller. */
+const ALLOWED_CC_DOMAIN = 'amsonsgroup.net';
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Normalises a caller-supplied `cc_emails` value into a safe list: trimmed,
+ * lowercased, syntactically valid, restricted to `@amsonsgroup.net`, and
+ * de-duplicated. Anything else (wrong type, bad syntax, external domain,
+ * duplicate) is silently dropped rather than rejected, so one bad entry
+ * doesn't block the rest of a valid list.
+ */
+export function sanitizeCcEmails(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of input) {
+    const email = String(raw ?? '').trim().toLowerCase();
+    if (!email || !EMAIL_RE.test(email)) continue;
+    if (!email.endsWith(`@${ALLOWED_CC_DOMAIN}`)) continue;
+    if (seen.has(email)) continue;
+    seen.add(email);
+    out.push(email);
+  }
+  return out;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Rating links
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -176,6 +206,7 @@ async function dispatch(
   recipients: Recipient[],
   buildContext: (r: Recipient) => TemplateContext,
   ticket: TicketView,
+  ccEmails: string[] = [],
 ): Promise<void> {
   // Deduplicate by normalised address: one person wearing three hats
   // (requester + HOD + assignee) still gets exactly one email.
@@ -215,7 +246,9 @@ async function dispatch(
         throw err;
       }
 
-      const result = await sendEmail({ to: recipient.email, subject, html });
+      // Never CC an address that's already the primary recipient.
+      const cc = ccEmails.filter((e) => e !== recipient.email.trim().toLowerCase());
+      const result = await sendEmail({ to: recipient.email, cc: cc.length ? cc : undefined, subject, html });
 
       await notification_logs.updateOne(
         { _id: logId },
@@ -287,6 +320,7 @@ export async function notifyTicketRaised(ticket: any): Promise<void> {
         ticketUrl: ticketUrl(view.id),
       }),
       view,
+      sanitizeCcEmails(ticket.cc_emails),
     );
   } catch (error: any) {
     console.error(`[notify] TICKET_RAISED failed: ${error?.message ?? error}`);

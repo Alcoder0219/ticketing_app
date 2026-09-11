@@ -296,7 +296,12 @@
     "deptRequiredDesc": "Please select an issue department.",
     "createFailed": "Failed to create ticket",
     "createdTitle": "Ticket Created",
-    "createdDesc": "Your ticket has been submitted successfully."
+    "createdDesc": "Your ticket has been submitted successfully.",
+    "ccEmail": "CC Email",
+    "optional": "Optional",
+    "ccPlaceholder": "Enter Amsons Group email addresses...",
+    "ccInvalidEmail": "Please enter a valid email address.",
+    "ccDomainNotAllowed": "Only @amsonsgroup.net email addresses are allowed."
   },
   "pcReview": {
     "title": "PC Review",
