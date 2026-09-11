@@ -27,7 +27,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { formatDate } from "@/utils/dateFormat";
+import { formatDate, getAppTodayStr, getAppDateStrDaysAgo, zonedDayRangeUtc } from "@/utils/dateFormat";
 import {
   Search, CalendarIcon, AlertTriangle, CheckCircle2, X, Send, UserX, Eye,
 } from "lucide-react";
@@ -70,8 +70,10 @@ export default function PCReview() {
   const [toDate, setToDate] = useState<Date | undefined>();
   const [searchInput, setSearchInput] = useState("");
   const search = useDebounced(searchInput, 300);
-  const fromDateStr = fromDate ? fromDate.toISOString().slice(0, 10) : undefined;
-  const toDateStr = toDate ? toDate.toISOString().slice(0, 10) : undefined;
+  // Interpret the picked calendar days as Nairobi day boundaries, not the
+  // viewer's own browser-local midnight — see zonedDayRangeUtc.
+  const fromDateStr = fromDate ? zonedDayRangeUtc(fromDate).start.toISOString() : undefined;
+  const toDateStr = toDate ? zonedDayRangeUtc(toDate).end.toISOString() : undefined;
 
   const [remindedIds, setRemindedIds] = useState<Set<string>>(new Set());
   const [proofPhotos, setProofPhotos] = useState<string[] | null>(null);
@@ -111,7 +113,8 @@ export default function PCReview() {
   }
 
   // Overdue tickets: target_date < today AND status not resolved/closed
-  const todayStr = new Date().toISOString().slice(0, 10);
+  // ("today" is the application's Nairobi calendar day, not UTC or the viewer's own).
+  const todayStr = getAppTodayStr();
   function buildOverdueBase() {
     const q = supabase.from("tickets").lt("target_date", todayStr).not("status", "in", "(resolved,closed)");
     return applyCommonFilters(q, "target_date");
@@ -137,11 +140,7 @@ export default function PCReview() {
   });
 
   // Critical = overdue by 15+ days, scoped by the same active filters.
-  const cutoff15Str = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 15);
-    return d.toISOString().slice(0, 10);
-  }, []);
+  const cutoff15Str = useMemo(() => getAppDateStrDaysAgo(15), []);
   const { data: criticalCount = 0 } = useQuery({
     queryKey: ["pc-review-critical", "count", cutoff15Str, plant, department, fromDateStr, toDateStr, search],
     queryFn: async () => {
@@ -210,11 +209,11 @@ export default function PCReview() {
     if (department !== "all" && t.issue_department_id !== department) return false;
     if (fromDate) {
       const ref = t.target_date || t.closed_at || t.created_at;
-      if (ref && new Date(ref) < fromDate) return false;
+      if (ref && new Date(ref) < zonedDayRangeUtc(fromDate).start) return false;
     }
     if (toDate) {
       const ref = t.target_date || t.closed_at || t.created_at;
-      if (ref && new Date(ref) > toDate) return false;
+      if (ref && new Date(ref) > zonedDayRangeUtc(toDate).end) return false;
     }
     return true;
   };

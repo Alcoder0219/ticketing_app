@@ -1,5 +1,6 @@
 import { AlertTriangle, Clock, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getAppYMD } from "@/utils/dateFormat";
 
 interface SLAIndicatorProps {
   targetDate: string | null;
@@ -19,10 +20,13 @@ export function SLAIndicator({ targetDate, nextTargetDate, status, className }: 
   const effective = nextTargetDate || targetDate;
   if (!effective || status === "closed" || status === "resolved") return null;
 
-  const target = new Date(effective);
-  const targetMidnight = new Date(target.getFullYear(), target.getMonth(), target.getDate()).getTime();
-  const now = new Date();
-  const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  // Day-only diff, evaluated by the application's Nairobi calendar day rather
+  // than the viewer's own browser timezone — two users in different countries
+  // must see the same "Due Today"/"Overdue" classification.
+  const targetYmd = getAppYMD(effective)!;
+  const todayYmd = getAppYMD(new Date())!;
+  const targetMidnight = Date.UTC(targetYmd.year, targetYmd.month - 1, targetYmd.day);
+  const todayMidnight = Date.UTC(todayYmd.year, todayYmd.month - 1, todayYmd.day);
   const diffDays = Math.round((targetMidnight - todayMidnight) / (1000 * 60 * 60 * 24));
 
   if (diffDays < 0) {

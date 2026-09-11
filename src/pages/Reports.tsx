@@ -17,8 +17,8 @@ import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/api/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
-import { format, subDays, differenceInCalendarDays } from "date-fns";
-import { formatDate, formatDateShort } from "@/utils/dateFormat";
+import { format, subDays } from "date-fns";
+import { formatDate, formatDateShort, zonedDayRangeUtc, getAppCalendarDayDiff } from "@/utils/dateFormat";
 import { cn } from "@/lib/utils";
 
 function ViewEyeButton({ ticketNumber }: { ticketNumber: string }) {
@@ -181,8 +181,10 @@ export default function Reports() {
   const { data: tickets, isLoading, error, refetch } = useQuery({
     queryKey: ["summary-tickets", selectedUnitNames.join(","), deptFilter, dateRange.from?.toISOString(), dateRange.to?.toISOString()],
     queryFn: async () => {
-      const fromISO = dateRange.from.toISOString();
-      const toISO = new Date(dateRange.to.getTime() + 24 * 60 * 60 * 1000 - 1).toISOString();
+      // Interpret the picked calendar days as Nairobi day boundaries, not the
+      // viewer's own browser-local midnight — see zonedDayRangeUtc.
+      const fromISO = zonedDayRangeUtc(dateRange.from).start.toISOString();
+      const toISO = zonedDayRangeUtc(dateRange.to).end.toISOString();
       let q = supabase
         .from("tickets")
         .select(`
@@ -228,7 +230,7 @@ export default function Reports() {
         issues: t.title || "",
         raised_by: t.raiser?.name || "â€”",
         status: displayStatus(t.status),
-        aging: differenceInCalendarDays(today, new Date(t.created_at)),
+        aging: getAppCalendarDayDiff(today, t.created_at),
       }));
   }, [tickets]);
 
@@ -245,7 +247,7 @@ export default function Reports() {
           department: t.dept?.name || "â€”",
           resolved_date: resolvedAt,
           resolved_date_label: formatDate(resolvedAt),
-          aging: differenceInCalendarDays(new Date(resolvedAt), new Date(t.created_at)),
+          aging: getAppCalendarDayDiff(resolvedAt, t.created_at),
           technician: t.assignee?.name || "â€”",
           resolved_by: t.closer?.name || t.assignee?.name || "â€”",
           raised_by: t.raiser?.name || "â€”",

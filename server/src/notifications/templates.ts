@@ -1,4 +1,5 @@
 import { env } from '../config/env.js';
+import { formatAppDateTime } from '../utils/dateTime.js';
 
 /**
  * Email templates — system wording in English and Swahili.
@@ -194,15 +195,8 @@ function statusBadge(value: string | null | undefined, lang: Lang): string {
   return `<span style="display:inline-block;padding:5px 12px;border-radius:999px;background:${bg};color:${fg};font-size:12px;font-weight:700;letter-spacing:0.03em;text-transform:uppercase;">${esc(statusLabel(value, lang))}</span>`;
 }
 
-/** DD-MM-YYYY, HH:MM — matches the portal's display format. */
-function fmtDate(value: unknown, withTime = true): string {
-  if (!value) return '';
-  const d = value instanceof Date ? value : new Date(String(value));
-  if (isNaN(d.getTime())) return '';
-  const p = (n: number) => String(n).padStart(2, '0');
-  const date = `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()}`;
-  return withTime ? `${date}, ${p(d.getHours())}:${p(d.getMinutes())}` : date;
-}
+/** DD-MM-YYYY, HH:MM — matches the portal's display format, in Africa/Nairobi. */
+const fmtDate = formatAppDateTime;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Building blocks

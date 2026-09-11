@@ -14,6 +14,7 @@ import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Legend,
 } from "recharts";
+import { getAppYMD } from "@/utils/dateFormat";
 
 const COLORS = {
   primary: "hsl(217, 80%, 45%)",
@@ -22,8 +23,10 @@ const COLORS = {
   danger: "hsl(0, 76%, 52%)",
 };
 
+// Buckets by the application's Nairobi calendar month, not the viewer's own.
 function getMonthKey(d: Date) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  const ymd = getAppYMD(d)!;
+  return `${ymd.year}-${String(ymd.month).padStart(2, "0")}`;
 }
 
 function ChartSkeleton() { return <Skeleton className="w-full h-[280px]" />; }

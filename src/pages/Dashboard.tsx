@@ -12,7 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { Inbox, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
-import { formatDate } from "@/utils/dateFormat";
+import { formatDate, getAppYMD, zonedDayRangeUtc } from "@/utils/dateFormat";
 import { DateRange } from "react-day-picker";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -25,31 +25,44 @@ const COLOR_LINE = "hsl(0, 0%, 20%)";
 const COLOR_PENDING = "hsl(220, 60%, 75%)";
 const COLOR_INPROGRESS = "hsl(220, 50%, 55%)";
 
-function startOfWeek(d: Date) {
-  const date = new Date(d);
-  const day = date.getDay() || 7;
-  date.setDate(date.getDate() - day + 1);
-  date.setHours(0, 0, 0, 0);
+const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// Represents an instant's Nairobi calendar day as a UTC-midnight "logical
+// date" — from here on it's only ever used for day/week/month arithmetic and
+// labeling via UTC getters, never re-interpreted as a real instant, so the
+// bucketing is identical for every viewer regardless of their own timezone.
+function appCalendarDate(instant: Date): Date {
+  const ymd = getAppYMD(instant)!;
+  return new Date(Date.UTC(ymd.year, ymd.month - 1, ymd.day));
+}
+function startOfWeek(calDate: Date) {
+  const date = new Date(calDate);
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() - day + 1);
   return date;
 }
-function getWeekNumber(d: Date) {
-  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+function getWeekNumber(calDate: Date) {
+  const date = new Date(calDate);
   const dayNum = date.getUTCDay() || 7;
   date.setUTCDate(date.getUTCDate() + 4 - dayNum);
   const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
   return Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
 }
-function weekLabel(d: Date) {
-  return `Week ${getWeekNumber(d)}`;
+function weekLabel(calDate: Date) {
+  return `Week ${getWeekNumber(calDate)}`;
 }
-function weekRangeLabel(d: Date) {
-  const start = startOfWeek(d);
+function fmtCalDate(calDate: Date, withYear: boolean) {
+  const m = MONTH_NAMES[calDate.getUTCMonth()];
+  return withYear ? `${m} ${calDate.getUTCDate()}, ${calDate.getUTCFullYear()}` : `${m} ${calDate.getUTCDate()}`;
+}
+function weekRangeLabel(calDate: Date) {
+  const start = startOfWeek(calDate);
   const end = new Date(start);
-  end.setDate(start.getDate() + 6);
-  return `${format(start, "MMM d")} to ${format(end, "MMM d, yyyy")} (Week ${getWeekNumber(d)})`;
+  end.setUTCDate(start.getUTCDate() + 6);
+  return `${fmtCalDate(start, false)} to ${fmtCalDate(end, true)} (Week ${getWeekNumber(calDate)})`;
 }
-function monthLabel(d: Date) {
-  return format(d, "MMM yyyy");
+function monthLabel(calDate: Date) {
+  return `${MONTH_NAMES[calDate.getUTCMonth()]} ${calDate.getUTCFullYear()}`;
 }
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
@@ -116,25 +129,29 @@ export default function Dashboard() {
 
   const filtered = useMemo(() => {
     if (!tickets) return [];
+    // Interpret the picked calendar days as Nairobi day boundaries, not the
+    // viewer's own browser-local midnight — see zonedDayRangeUtc.
+    const from = dateRange?.from ? zonedDayRangeUtc(dateRange.from).start : null;
+    const to = dateRange?.to ? zonedDayRangeUtc(dateRange.to).end : null;
     return tickets.filter(t => {
       if (unitFilter !== "all" && t.unit_id !== unitFilter) return false;
       if (deptFilter !== "all" && t.issue_department_id !== deptFilter) return false;
       const created = new Date(t.created_at);
-      if (dateRange?.from && created < dateRange.from) return false;
-      if (dateRange?.to && created > dateRange.to) return false;
+      if (from && created < from) return false;
+      if (to && created > to) return false;
       return true;
     });
   }, [tickets, unitFilter, deptFilter, dateRange]);
 
-  // Build period buckets
+  // Build period buckets, keyed by the application's Nairobi calendar day/week/month.
   function buildBuckets<T>(items: T[], getDate: (i: T) => Date | null, granularity: "week" | "month", count: number) {
     const buckets: Array<{ key: string; label: string; rangeLabel: string; date: Date; items: T[] }> = [];
-    const now = new Date();
+    const nowCal = appCalendarDate(new Date());
     for (let i = count - 1; i >= 0; i--) {
-      const d = new Date(now);
-      if (granularity === "week") d.setDate(d.getDate() - i * 7);
-      else d.setMonth(d.getMonth() - i);
-      const anchor = granularity === "week" ? startOfWeek(d) : new Date(d.getFullYear(), d.getMonth(), 1);
+      const d = new Date(nowCal);
+      if (granularity === "week") d.setUTCDate(d.getUTCDate() - i * 7);
+      else d.setUTCMonth(d.getUTCMonth() - i);
+      const anchor = granularity === "week" ? startOfWeek(d) : new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1));
       const key = anchor.toISOString();
       buckets.push({
         key,
@@ -147,7 +164,8 @@ export default function Dashboard() {
     items.forEach(it => {
       const dt = getDate(it);
       if (!dt) return;
-      const anchor = granularity === "week" ? startOfWeek(dt) : new Date(dt.getFullYear(), dt.getMonth(), 1);
+      const cal = appCalendarDate(dt);
+      const anchor = granularity === "week" ? startOfWeek(cal) : new Date(Date.UTC(cal.getUTCFullYear(), cal.getUTCMonth(), 1));
       const b = buckets.find(b => b.key === anchor.toISOString());
       if (b) b.items.push(it);
     });
