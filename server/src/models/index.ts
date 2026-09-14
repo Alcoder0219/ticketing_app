@@ -1,6 +1,6 @@
 import { Schema, model } from 'mongoose';
 import { baseOptions, idField } from './_base.js';
-import { APP_ROLES, TICKET_PRIORITIES, TICKET_STATUSES } from './enums.js';
+import { TICKET_PRIORITIES, TICKET_STATUSES } from './enums.js';
 import { AuthUser } from './AuthUser.js';
 
 const Mixed = Schema.Types.Mixed;
@@ -400,11 +400,17 @@ const userNotificationPreferences = new Schema(
 );
 
 // user_roles
+// `role` is a free-form string rather than a fixed enum: beyond the built-in
+// canonical roles, an administrator can define arbitrary custom roles from
+// Settings -> Roles & Permissions, and this field must accept whatever name
+// currently exists there. `isAssignableRole` (auth/service.ts) is the actual
+// validation boundary, applied at every write path before this document is
+// created/updated — see rest/routes.ts and functions/routes.ts.
 const userRoles = new Schema(
   {
     _id: idField,
     user_id: { type: String, required: true, index: true },
-    role: { type: String, enum: APP_ROLES, required: true, index: true },
+    role: { type: String, required: true, index: true },
   },
   baseOptions,
 );

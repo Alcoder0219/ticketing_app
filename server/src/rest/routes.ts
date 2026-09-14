@@ -13,6 +13,7 @@ import {
   verifyRatingToken,
   sanitizeCcEmails,
 } from '../notifications/service.js';
+import { isAssignableRole } from '../auth/service.js';
 
 export const restRouter = Router();
 
@@ -228,6 +229,17 @@ restRouter.post('/query', requireAuth, async (req, res) => {
         }
       }
 
+      // A role must be a built-in canonical role or an existing Roles &
+      // Permissions entry — the frontend dropdown is populated from the same
+      // source, but a hand-crafted request must be rejected here too.
+      if (body.table === 'user_roles') {
+        for (const value of input) {
+          if (!(await isAssignableRole(value.role))) {
+            return res.json({ data: null, error: { message: `Invalid role: '${value.role}' does not exist` } });
+          }
+        }
+      }
+
       const created = await model.insertMany(input.map(stripId), { rawResult: false });
       created.forEach((d) => emitChange(body.table, 'INSERT', d.toJSON()));
 
@@ -262,6 +274,9 @@ restRouter.post('/query', requireAuth, async (req, res) => {
       const isTicket = body.table === 'tickets';
       if (isTicket && 'cc_emails' in values) {
         values.cc_emails = sanitizeCcEmails(values.cc_emails);
+      }
+      if (body.table === 'user_roles' && 'role' in values && !(await isAssignableRole(values.role))) {
+        return res.json({ data: null, error: { message: `Invalid role: '${values.role}' does not exist` } });
       }
       for (const doc of toUpdate) {
         // Snapshot before mutating so the notifier can tell what actually

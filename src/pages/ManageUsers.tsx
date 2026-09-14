@@ -54,8 +54,12 @@ const formatRoleLabel = (key: string) =>
 
 // Map a roles-table name (which may be a display label like "HOD" or "Technician",
 // or an enum key like "hod") to the canonical role value stored in user_roles.role.
-// Keeps the dropdown driven by the dynamic roles table while always assigning a
-// valid role value.
+// Only the built-in roles need this — they carry special-cased business logic
+// elsewhere (dashboard scoping, ticket visibility) keyed on these exact strings,
+// so display-name variants must collapse onto the same canonical value. Any
+// other (custom) role name is not a known alias, so it IS its own value —
+// passed through unchanged, which is what makes a newly created role in
+// Settings -> Roles & Permissions usable here with no code change.
 const NAME_TO_ROLE: Record<string, AppRole> = {
   "super admin": "super_admin",
   super_admin: "super_admin",
@@ -69,9 +73,9 @@ const NAME_TO_ROLE: Record<string, AppRole> = {
   "admin south": "Admin South",
 };
 
-const toRoleValue = (name: string): AppRole | null => {
+export const toRoleValue = (name: string): AppRole => {
   const k = String(name ?? "").trim().toLowerCase();
-  return NAME_TO_ROLE[k] ?? null;
+  return NAME_TO_ROLE[k] ?? name;
 };
 
 interface UserForm {
@@ -176,24 +180,27 @@ export default function ManageUsers() {
     refetchInterval: false,
   });
 
-  const { data: rolesList } = useQuery({
+  const { data: rolesList, isLoading: rolesListLoading, isError: rolesListError } = useQuery({
     queryKey: ["roles-list"],
     queryFn: async () => {
-      const { data } = await (supabase.from("roles" as any).select("name").order("created_at") as any);
+      const { data, error } = await (supabase.from("roles" as any).select("name").order("created_at") as any);
+      if (error) throw error;
       return ((data ?? []) as Array<{ name: string }>).map((r) => r.name);
     },
     refetchOnWindowFocus: false,
   });
 
-  // Roles come ONLY from the dynamic `roles` table. Each entry maps to a valid
-  // role value and is de-duplicated so the same role can't appear twice (e.g.
-  // a "super_admin" row and a "Super Admin" row both collapse to one option).
+  // Roles come ONLY from the dynamic `roles` table — this is the single
+  // source of truth also used by Settings -> Roles & Permissions. Every
+  // current role name is included (de-duplicated, since a "super_admin" row
+  // and a "Super Admin" row both collapse to the same canonical value); a
+  // role removed from the table simply stops appearing here.
   const roleOptions = (() => {
     const seen = new Set<string>();
     const opts: { value: AppRole; label: string }[] = [];
     for (const name of rolesList ?? []) {
       const value = toRoleValue(name);
-      if (!value || seen.has(value)) continue;
+      if (seen.has(value)) continue;
       seen.add(value);
       opts.push({ value, label: name });
     }
@@ -568,7 +575,11 @@ export default function ManageUsers() {
                 <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as AppRole })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {roleOptions.map((o) => (
+                    {rolesListLoading && <SelectItem value="__loading__" disabled>Loading roles...</SelectItem>}
+                    {!rolesListLoading && rolesListError && (
+                      <SelectItem value="__error__" disabled>Unable to load roles. Please try again.</SelectItem>
+                    )}
+                    {!rolesListLoading && !rolesListError && roleOptions.map((o) => (
                       <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                     ))}
                   </SelectContent>
@@ -653,7 +664,11 @@ export default function ManageUsers() {
                 <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v as AppRole })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {roleOptions.map((o) => (
+                    {rolesListLoading && <SelectItem value="__loading__" disabled>Loading roles...</SelectItem>}
+                    {!rolesListLoading && rolesListError && (
+                      <SelectItem value="__error__" disabled>Unable to load roles. Please try again.</SelectItem>
+                    )}
+                    {!rolesListLoading && !rolesListError && roleOptions.map((o) => (
                       <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                     ))}
                   </SelectContent>

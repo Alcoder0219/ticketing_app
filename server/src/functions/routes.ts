@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { AuthUser, models } from '../models/index.js';
 import { requireAuth } from '../auth/middleware.js';
-import { createUser } from '../auth/service.js';
+import { createUser, isAssignableRole } from '../auth/service.js';
 import bcrypt from 'bcryptjs';
 import { getUserRole } from '../auth/authz.js';
 import { handleChatWithAI } from './chatWithAI.js';
@@ -46,6 +46,11 @@ functionsRouter.post('/admin-create-user', ...adminGuard(), async (req, res) => 
     if (!unitId || unitId === 'none') throw new Error('Please select a unit');
     if (role && ['super_admin', 'admin'].includes(role) && !caller.isSuperAdmin) {
       throw new Error('Only a super admin can assign admin or super admin roles');
+    }
+    // Never trust the submitted role — it must be a built-in canonical role
+    // or a name that currently exists in the Roles & Permissions collection.
+    if (role && role !== 'user' && !(await isAssignableRole(role))) {
+      throw new Error(`Invalid role: '${role}' does not exist`);
     }
 
     const user = await createUser({

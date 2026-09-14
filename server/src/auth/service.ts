@@ -1,8 +1,29 @@
 import bcrypt from 'bcryptjs';
 import { AuthUser, models } from '../models/index.js';
-import type { AppRole } from '../models/enums.js';
+import { APP_ROLES, type AppRole } from '../models/enums.js';
 
-const { profiles, user_roles, allowed_google_domains } = models;
+const { profiles, user_roles, allowed_google_domains, roles } = models;
+
+/**
+ * Whether `role` may legitimately be assigned to a user right now: either one
+ * of the built-in canonical roles (always valid, even before a matching
+ * `roles` row exists — see PermissionsContext's BUILTIN_PERMISSIONS fallback),
+ * or the name of a role that currently exists in the dynamic Roles &
+ * Permissions collection (case-insensitive, matching how the frontend
+ * dropdown and PermissionsContext both resolve a role by name).
+ *
+ * This is the actual security boundary: the frontend dropdown is populated
+ * from the same `roles` collection, but a hand-crafted API request must be
+ * rejected here if it names a role that doesn't exist.
+ */
+export async function isAssignableRole(role: unknown): Promise<boolean> {
+  const value = String(role ?? '').trim();
+  if (!value) return false;
+  if ((APP_ROLES as readonly string[]).some((r) => r.toLowerCase() === value.toLowerCase())) return true;
+  const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const exists = await roles.exists({ name: { $regex: `^${escaped}$`, $options: 'i' } });
+  return !!exists;
+}
 
 export interface SignupMeta {
   name?: string;

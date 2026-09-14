@@ -1,6 +1,11 @@
 // Shared domain types for the app (replaces the old generated Supabase
 // `Database` types). Mirrors the enums defined in the backend.
 
+// The built-in canonical roles, plus (via `string & {}`) any custom role name
+// defined in the dynamic Roles & Permissions collection — see ManageUsers.tsx
+// and PermissionsContext.tsx, which resolve a role by matching this string
+// against the live `roles` table. Kept open rather than a closed union so a
+// role created at runtime type-checks without a frontend code change.
 export type AppRole =
   | 'super_admin'
   | 'admin'
@@ -8,7 +13,8 @@ export type AppRole =
   | 'user'
   | 'assigned_person'
   | 'PC'
-  | 'Admin South';
+  | 'Admin South'
+  | (string & {});
 
 export type TicketPriority = 'low' | 'medium' | 'high' | 'critical';
 
