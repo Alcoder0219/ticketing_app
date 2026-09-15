@@ -150,7 +150,11 @@ export default function Analytics() {
         name: t.name,
         closed: t.closed,
         avgAging: t.agings.length > 0 ? +(t.agings.reduce((a, b) => a + b, 0) / t.agings.length).toFixed(1) : 0,
-        avgScore: t.ratings.length > 0 ? +(t.ratings.reduce((a, b) => a + b, 0) / t.ratings.length).toFixed(2) : 0,
+        // Kept as a raw number (not pre-rounded to a string and cast back) so
+        // display formatting doesn't drop trailing zeros — a perfect 5.00
+        // average was rendering as bare "5". `null` (not 0, which is outside
+        // the valid 1–5 rating range anyway) marks "no ratings yet".
+        avgScore: t.ratings.length > 0 ? t.ratings.reduce((a, b) => a + b, 0) / t.ratings.length : null,
       }))
       .sort((a, b) => b.closed - a.closed);
   }, [filtered, ratings]);
@@ -258,11 +262,11 @@ export default function Analytics() {
                       <TableCell className="text-right">{t.closed}</TableCell>
                       <TableCell className="text-right">{t.avgAging || "â€”"}</TableCell>
                       <TableCell className="text-right">
-                        {t.avgScore > 0 ? (
+                        {t.avgScore !== null ? (
                           <Badge variant={t.avgScore >= 4 ? "default" : t.avgScore >= 3 ? "secondary" : "destructive"}>
-                            {t.avgScore} â˜…
+                            {t.avgScore.toFixed(2)}
                           </Badge>
-                        ) : "â€”"}
+                        ) : "—"}
                       </TableCell>
                     </TableRow>
                   ))}
