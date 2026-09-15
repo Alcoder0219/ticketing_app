@@ -27,7 +27,7 @@ import {
  *   • Only ever called AFTER the database write has succeeded.
  */
 
-const { notification_logs, profiles, units, departments, ticket_ratings } = models;
+const { notification_logs, profiles, units, departments, sub_departments, ticket_ratings } = models;
 
 export const EVENTS = {
   TICKET_RAISED: 'TICKET_RAISED',
@@ -73,6 +73,12 @@ export function sanitizeCcEmails(input: unknown): string[] {
     out.push(email);
   }
   return out;
+}
+
+/** True for a syntactically valid `@amsonsgroup.net` address — used to validate Sub Department config. */
+export function isAllowedAmsonsEmail(value: unknown): boolean {
+  const email = String(value ?? '').trim().toLowerCase();
+  return EMAIL_RE.test(email) && email.endsWith(`@${ALLOWED_CC_DOMAIN}`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -297,6 +303,20 @@ function toView(ticket: any): TicketView {
   };
 }
 
+/**
+ * Sub Department configured recipients for the Ticket Raised email only (see
+ * EVENTS.TICKET_RAISED handling below) — never trusted from the client, always
+ * re-derived here from the stored config for the ticket's own sub_department_id.
+ */
+async function loadSubDepartmentContext(
+  ticket: any,
+): Promise<{ subDepartmentName: string | null; emails: string[] }> {
+  if (!ticket.sub_department_id) return { subDepartmentName: null, emails: [] };
+  const subDept: any = await sub_departments.findOne({ _id: ticket.sub_department_id }).lean();
+  if (!subDept) return { subDepartmentName: null, emails: [] };
+  return { subDepartmentName: subDept.name ?? null, emails: Array.isArray(subDept.email_ids) ? subDept.email_ids : [] };
+}
+
 /** A. Ticket raised → the requester. */
 export async function notifyTicketRaised(ticket: any): Promise<void> {
   try {
@@ -306,6 +326,11 @@ export async function notifyTicketRaised(ticket: any): Promise<void> {
     if (!requester) return;
 
     const names = await loadContextNames(ticket);
+    const { subDepartmentName, emails: subDeptEmails } = await loadSubDepartmentContext(ticket);
+    // Existing manual CC + Sub Department configured recipients, deduplicated —
+    // the requester (To) and sender are untouched by this.
+    const ccEmails = sanitizeCcEmails([...(ticket.cc_emails ?? []), ...subDeptEmails]);
+
     await dispatch(
       EVENTS.TICKET_RAISED,
       'TICKET_RAISED',
@@ -316,11 +341,12 @@ export async function notifyTicketRaised(ticket: any): Promise<void> {
         lang: r.lang,
         recipientName: r.name,
         ...names,
+        subDepartmentName,
         raisedByName: requester.name,
         ticketUrl: ticketUrl(view.id),
       }),
       view,
-      sanitizeCcEmails(ticket.cc_emails),
+      ccEmails,
     );
   } catch (error: any) {
     console.error(`[notify] TICKET_RAISED failed: ${error?.message ?? error}`);

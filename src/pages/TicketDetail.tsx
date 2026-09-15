@@ -68,7 +68,7 @@ export default function TicketDetail() {
     queryFn: async () => {
       const { data } = await supabase
         .from("tickets")
-        .select("*, issue_dept:departments!tickets_issue_department_id_fkey(name), dept:departments!tickets_department_id_fkey(name), unit:units(name), raiser:profiles!tickets_raised_by_fkey(name, employee_id, contact, department_id), assigned_profile:profiles!tickets_assigned_to_fkey(name, employee_id, contact), closed_by_profile:profiles!tickets_closed_by_fkey(name)")
+        .select("*, issue_dept:departments!tickets_issue_department_id_fkey(name), dept:departments!tickets_department_id_fkey(name), sub_dept:sub_departments!tickets_sub_department_id_fkey(name), unit:units(name), raiser:profiles!tickets_raised_by_fkey(name, employee_id, contact, department_id), assigned_profile:profiles!tickets_assigned_to_fkey(name, employee_id, contact), closed_by_profile:profiles!tickets_closed_by_fkey(name)")
         .eq("id", id!)
         .single();
       return data;
@@ -674,6 +674,9 @@ export default function TicketDetail() {
               <CardContent className="space-y-4">
                 <DetailRow icon={<Building2 className="h-4 w-4" />} label="Unit" value={(ticket as any).unit?.name || "â€”"} />
                 <DetailRow icon={<Building2 className="h-4 w-4" />} label="Issue Dept" value={(ticket as any).issue_dept?.name || "â€”"} />
+                {(ticket as any).sub_dept?.name && (
+                  <DetailRow icon={<Building2 className="h-4 w-4" />} label="Sub Department" value={(ticket as any).sub_dept.name} />
+                )}
                 <DetailRow icon={<Calendar className="h-4 w-4" />} label="Raised" value={formatDate(ticket.created_at, true)} />
                 {(() => {
                   const closed = isTicketClosed(ticket.status);

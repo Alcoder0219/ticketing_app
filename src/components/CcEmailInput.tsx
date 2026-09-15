@@ -10,9 +10,12 @@ interface Props {
   value: string[];
   onChange: (emails: string[]) => void;
   disabled?: boolean;
+  placeholder?: string;
+  invalidMessage?: string;
+  domainMessage?: string;
 }
 
-export function CcEmailInput({ value, onChange, disabled }: Props) {
+export function CcEmailInput({ value, onChange, disabled, placeholder, invalidMessage, domainMessage }: Props) {
   const { t } = useTranslation();
   const [draft, setDraft] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -21,11 +24,11 @@ export function CcEmailInput({ value, onChange, disabled }: Props) {
     const email = draft.trim();
     if (!email) return;
     if (!EMAIL_RE.test(email)) {
-      setError(t("createTicket.ccInvalidEmail"));
+      setError(invalidMessage ?? t("createTicket.ccInvalidEmail"));
       return;
     }
     if (!email.toLowerCase().endsWith(`@${ALLOWED_CC_DOMAIN}`)) {
-      setError(t("createTicket.ccDomainNotAllowed"));
+      setError(domainMessage ?? t("createTicket.ccDomainNotAllowed"));
       return;
     }
     const normalized = email.toLowerCase();
@@ -77,7 +80,7 @@ export function CcEmailInput({ value, onChange, disabled }: Props) {
           onBlur={() => {
             if (draft.trim()) tryAdd();
           }}
-          placeholder={value.length ? "" : t("createTicket.ccPlaceholder")}
+          placeholder={value.length ? "" : (placeholder ?? t("createTicket.ccPlaceholder"))}
           className="flex-1 min-w-[180px] bg-transparent text-sm outline-none placeholder:text-muted-foreground"
         />
       </div>

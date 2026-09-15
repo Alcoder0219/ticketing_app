@@ -179,6 +179,22 @@ const roles = new Schema(
   baseOptions,
 );
 
+// sub_departments
+const subDepartments = new Schema(
+  {
+    _id: idField,
+    department_id: { type: String, required: true, index: true },
+    name: { type: String, required: true },
+    email_ids: { type: [String], default: [] },
+    created_at: ts(),
+    updated_at: ts(),
+  },
+  baseOptions,
+);
+// Belt-and-suspenders exact-match guard — the real (case-insensitive)
+// duplicate check happens in rest/routes.ts before the write.
+subDepartments.index({ department_id: 1, name: 1 }, { unique: true });
+
 // ticket_attachments
 const ticketAttachments = new Schema(
   {
@@ -263,6 +279,7 @@ const tickets = new Schema(
     assigned_at: { type: Date, default: null },
     department_id: { type: String, default: null, index: true },
     issue_department_id: { type: String, default: null, index: true },
+    sub_department_id: { type: String, default: null, index: true },
     unit_id: { type: String, default: null, index: true },
     attachments: { type: Mixed, default: [] },
     resolution_photos: { type: Mixed, default: [] },
@@ -432,6 +449,7 @@ export const models: Record<string, any> = {
   profiles: model('profiles', profiles, 'profiles'),
   role_plant_access: model('role_plant_access', rolePlantAccess, 'role_plant_access'),
   roles: model('roles', roles, 'roles'),
+  sub_departments: model('sub_departments', subDepartments, 'sub_departments'),
   ticket_attachments: model('ticket_attachments', ticketAttachments, 'ticket_attachments'),
   ticket_history: model('ticket_history', ticketHistory, 'ticket_history'),
   ticket_messages: model('ticket_messages', ticketMessages, 'ticket_messages'),

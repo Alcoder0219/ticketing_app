@@ -131,7 +131,7 @@ function PanelInner({ ticketKey, onClose }: PanelInnerProps) {
   const { data: ticket, isLoading, isError, refetch } = useQuery({
     queryKey: ["ticket-panel", ticketKey],
     queryFn: async () => {
-      const select = "*, issue_dept:departments!tickets_issue_department_id_fkey(name), unit:units(name), raiser:profiles!tickets_raised_by_fkey(name, employee_id, contact), assigned_profile:profiles!tickets_assigned_to_fkey(name, employee_id, contact)";
+      const select = "*, issue_dept:departments!tickets_issue_department_id_fkey(name), sub_dept:sub_departments!tickets_sub_department_id_fkey(name), unit:units(name), raiser:profiles!tickets_raised_by_fkey(name, employee_id, contact), assigned_profile:profiles!tickets_assigned_to_fkey(name, employee_id, contact)";
       // Try by uuid first if it looks like one, otherwise by ticket_number
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(ticketKey);
       const col = isUuid ? "id" : "ticket_number";
@@ -255,6 +255,7 @@ function PanelInner({ ticketKey, onClose }: PanelInnerProps) {
       <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 rounded-lg border bg-card p-3 text-xs">
         <InfoRow label="Ticket ID" value={t.ticket_number} mono />
         <InfoRow label="Department" value={t.issue_dept?.name || "—"} />
+        {t.sub_dept?.name && <InfoRow label="Sub Department" value={t.sub_dept.name} />}
         <InfoRow label="Created On" value={fmt(t.created_at)} />
         <InfoRow label="Plant / Unit" value={t.unit?.name || "—"} />
         <InfoRow label="Aging" value={

@@ -12,6 +12,7 @@ import {
   notifyRatingSubmitted,
   verifyRatingToken,
   sanitizeCcEmails,
+  isAllowedAmsonsEmail,
 } from '../notifications/service.js';
 import { isAssignableRole } from '../auth/service.js';
 
@@ -101,6 +102,44 @@ function ratingInsertDenied(
   if (ticket.raised_by !== authorisedUser) {
     return 'Only the requester can rate this ticket';
   }
+  return null;
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Validates a Sub Department write (insert or update) against its Main
+ * Department and its notification email list. Returns an error message, or
+ * null when the write may proceed. `excludeId` skips the row being edited
+ * when checking for a duplicate Department + Sub Department combination.
+ */
+async function subDepartmentWriteDenied(
+  departmentId: unknown,
+  name: unknown,
+  emailIds: unknown,
+  excludeId?: string,
+): Promise<string | null> {
+  const deptId = String(departmentId ?? '').trim();
+  const trimmedName = String(name ?? '').trim();
+  if (!deptId || !trimmedName) return 'Main Department and Sub Department name are required';
+
+  const dept = await models.departments.findOne({ _id: deptId }).lean();
+  if (!dept) return 'Selected Main Department does not exist';
+
+  const emails = Array.isArray(emailIds) ? emailIds : [];
+  const invalid = emails.find((e) => !isAllowedAmsonsEmail(e));
+  if (invalid !== undefined) return `Only @amsonsgroup.net email addresses are allowed: ${invalid}`;
+
+  const dupeFilter: Record<string, any> = {
+    department_id: deptId,
+    name: { $regex: `^${escapeRegex(trimmedName)}$`, $options: 'i' },
+  };
+  if (excludeId) dupeFilter._id = { $ne: excludeId };
+  const dupe = await models.sub_departments.findOne(dupeFilter).lean();
+  if (dupe) return 'This Sub Department already exists under the selected Main Department';
+
   return null;
 }
 
@@ -226,6 +265,30 @@ restRouter.post('/query', requireAuth, async (req, res) => {
       if (body.table === 'tickets') {
         for (const value of input) {
           value.cc_emails = sanitizeCcEmails(value.cc_emails);
+
+          // Sub Department is optional, but when supplied it must genuinely
+          // belong to the selected Issue Department — the client only ever
+          // sends the id, never the notification recipients themselves.
+          if (value.sub_department_id) {
+            const subDept = await models.sub_departments.findOne({ _id: value.sub_department_id }).lean();
+            if (!subDept || String((subDept as any).department_id) !== String(value.issue_department_id ?? '')) {
+              return res.json({
+                data: null,
+                error: { message: 'Invalid Sub Department for the selected Issue Department' },
+              });
+            }
+          }
+        }
+      }
+
+      // Sub Department config: Main Department must exist, emails must be
+      // @amsonsgroup.net, and the (department, name) pair must be unique.
+      if (body.table === 'sub_departments') {
+        for (const value of input) {
+          const denied = await subDepartmentWriteDenied(value.department_id, value.name, value.email_ids);
+          if (denied) return res.json({ data: null, error: { message: denied } });
+          value.name = String(value.name).trim();
+          value.email_ids = sanitizeCcEmails(value.email_ids);
         }
       }
 
@@ -277,6 +340,17 @@ restRouter.post('/query', requireAuth, async (req, res) => {
       }
       if (body.table === 'user_roles' && 'role' in values && !(await isAssignableRole(values.role))) {
         return res.json({ data: null, error: { message: `Invalid role: '${values.role}' does not exist` } });
+      }
+      if (body.table === 'sub_departments') {
+        if ('email_ids' in values) values.email_ids = sanitizeCcEmails(values.email_ids);
+        for (const doc of toUpdate) {
+          const departmentId = 'department_id' in values ? values.department_id : (doc as any).department_id;
+          const name = 'name' in values ? values.name : (doc as any).name;
+          const emailIds = 'email_ids' in values ? values.email_ids : (doc as any).email_ids;
+          const denied = await subDepartmentWriteDenied(departmentId, name, emailIds, String((doc as any)._id));
+          if (denied) return res.json({ data: null, error: { message: denied } });
+        }
+        if ('name' in values) values.name = String(values.name).trim();
       }
       for (const doc of toUpdate) {
         // Snapshot before mutating so the notifier can tell what actually

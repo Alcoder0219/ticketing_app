@@ -20,7 +20,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Building2, PlusCircle, Pencil, Trash2, Save, Factory, Check, X, Bot } from "lucide-react";
+import { Building2, PlusCircle, Pencil, Trash2, Save, Factory, Check, X, Bot, Layers } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/api/client";
@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 
 import { RolesPermissionsTab } from "@/components/settings/RolesPermissionsTab";
 import { AIConfigTab } from "@/components/settings/AIConfigTab";
+import { CcEmailInput } from "@/components/CcEmailInput";
 import { formatDate } from "@/utils/dateFormat";
 
 
@@ -45,6 +46,14 @@ export default function Settings() {
   const [deptDeleteOpen, setDeptDeleteOpen] = useState(false);
   const [editingDept, setEditingDept] = useState<any>(null);
   const [deptName, setDeptName] = useState("");
+
+  // Sub Department management
+  const [subDeptDialogOpen, setSubDeptDialogOpen] = useState(false);
+  const [subDeptDeleteOpen, setSubDeptDeleteOpen] = useState(false);
+  const [editingSubDept, setEditingSubDept] = useState<any>(null);
+  const [subDeptDeptId, setSubDeptDeptId] = useState("");
+  const [subDeptName, setSubDeptName] = useState("");
+  const [subDeptEmails, setSubDeptEmails] = useState<string[]>([]);
 
   // Unit management
   const [unitDialogOpen, setUnitDialogOpen] = useState(false);
@@ -210,6 +219,68 @@ export default function Settings() {
     },
   });
 
+  const { data: subDepartments, isLoading: subDeptsLoading } = useQuery({
+    queryKey: ["sub_departments"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("sub_departments")
+        .select("*, department:departments!sub_departments_department_id_fkey(name)")
+        .order("name");
+      return data || [];
+    },
+    refetchOnWindowFocus: false,
+    refetchInterval: false,
+  });
+
+  const closeSubDeptDialog = () => {
+    setSubDeptDialogOpen(false);
+    setEditingSubDept(null);
+    setSubDeptDeptId("");
+    setSubDeptName("");
+    setSubDeptEmails([]);
+  };
+
+  const addSubDept = useMutation({
+    mutationFn: async (payload: { department_id: string; name: string; email_ids: string[] }) => {
+      const { error } = await supabase.from("sub_departments").insert(payload);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sub_departments"] });
+      toast({ title: "Sub Department Added" });
+      closeSubDeptDialog();
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const updateSubDept = useMutation({
+    mutationFn: async ({ id, department_id, name, email_ids }: { id: string; department_id: string; name: string; email_ids: string[] }) => {
+      const { error } = await supabase.from("sub_departments").update({ department_id, name, email_ids }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sub_departments"] });
+      toast({ title: "Sub Department Updated" });
+      closeSubDeptDialog();
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const deleteSubDept = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("sub_departments").delete().eq("id", id);
+      if (error) throw error;
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sub_departments"] });
+      toast({ title: "Sub Department Deleted" });
+      setSubDeptDeleteOpen(false);
+      setEditingSubDept(null);
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
   const handleSaveCompany = () => toast({ title: "Company Settings Saved" });
   const handleSaveSLA = () => toast({ title: "SLA Configuration Saved" });
   const handleSaveNotifications = () => toast({ title: "Notification Preferences Saved" });
@@ -219,12 +290,13 @@ export default function Settings() {
     <AppLayout title={t("settings.title")}>
       <div className="max-w-4xl mx-auto">
         <Tabs defaultValue="company" className="space-y-6">
-          {/* Scrolls horizontally on small screens instead of squashing the
-              labels; scrollbar-none hides the bar without disabling the scroll. */}
-          <TabsList className="flex w-full overflow-x-auto scrollbar-none md:grid md:grid-cols-8">
+          {/* Scrolls horizontally instead of squashing the labels into equal-width
+              columns; scrollbar-none hides the bar without disabling the scroll. */}
+          <TabsList className="flex w-full overflow-x-auto scrollbar-none">
             <TabsTrigger value="company">{t("settings.company")}</TabsTrigger>
             <TabsTrigger value="units">{t("settings.units")}</TabsTrigger>
             <TabsTrigger value="departments">{t("settings.departments")}</TabsTrigger>
+            <TabsTrigger value="subDepartments">{t("settings.subDepartments")}</TabsTrigger>
             <TabsTrigger value="sla">{t("settings.slaConfig")}</TabsTrigger>
             <TabsTrigger value="notifications">{t("settings.notifications")}</TabsTrigger>
             <TabsTrigger value="ai-config"><Bot className="h-3.5 w-3.5 mr-1" />{t("settings.aiConfig")}</TabsTrigger>
@@ -387,6 +459,69 @@ export default function Settings() {
             </Card>
           </TabsContent>
 
+          {/* Sub Departments */}
+          <TabsContent value="subDepartments">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2"><Layers className="h-4 w-4" /> {t("settings.subDepartmentManagement")}</CardTitle>
+                <Button
+                  size="sm"
+                  onClick={() => { setEditingSubDept(null); setSubDeptDeptId(""); setSubDeptName(""); setSubDeptEmails([]); setSubDeptDialogOpen(true); }}
+                >
+                  <PlusCircle className="h-4 w-4 mr-2" /> {t("settings.addSubDepartment")}
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("settings.mainDepartment")}</TableHead>
+                      <TableHead>{t("createTicket.subDepartment")}</TableHead>
+                      <TableHead>{t("settings.emailId")}</TableHead>
+                      <TableHead className="text-right">{t("rolesPerms.actions")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {subDeptsLoading && (
+                      <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
+                    )}
+                    {!subDeptsLoading && subDepartments?.map((sd: any) => (
+                      <TableRow key={sd.id}>
+                        <TableCell className="font-medium">{sd.department?.name || "—"}</TableCell>
+                        <TableCell>{sd.name}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground break-words max-w-xs">
+                          {(sd.email_ids || []).join(", ") || "—"}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => {
+                              setEditingSubDept(sd);
+                              setSubDeptDeptId(sd.department_id);
+                              setSubDeptName(sd.name);
+                              setSubDeptEmails(sd.email_ids || []);
+                              setSubDeptDialogOpen(true);
+                            }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => { setEditingSubDept(sd); setSubDeptDeleteOpen(true); }}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {!subDeptsLoading && subDepartments?.length === 0 && (
+                      <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">{t("createTicket.noSubDepartments")}</TableCell></TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* SLA */}
           <TabsContent value="sla">
             <Card>
@@ -526,6 +661,74 @@ export default function Settings() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => editingDept && deleteDept.mutate(editingDept.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Sub Department Dialog */}
+      <Dialog open={subDeptDialogOpen} onOpenChange={setSubDeptDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingSubDept ? t("settings.editSubDepartment") : t("settings.addSubDepartment")}</DialogTitle>
+            <DialogDescription>
+              {editingSubDept ? "Update the sub department details." : "Configure a new sub department and its notification recipients."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>{t("settings.mainDepartment")}</Label>
+              <Select value={subDeptDeptId} onValueChange={setSubDeptDeptId}>
+                <SelectTrigger><SelectValue placeholder={t("createTicket.selectDepartmentPlaceholder")} /></SelectTrigger>
+                <SelectContent>
+                  {departments?.filter((d: any) => d.is_active !== false).map((d: any) => (
+                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>{t("createTicket.subDepartment")}</Label>
+              <Input value={subDeptName} onChange={(e) => setSubDeptName(e.target.value)} placeholder={t("settings.subDepartmentNamePlaceholder")} />
+            </div>
+            <div className="space-y-2">
+              <Label>{t("settings.emailAddresses")}</Label>
+              <CcEmailInput
+                value={subDeptEmails}
+                onChange={setSubDeptEmails}
+                placeholder={t("createTicket.ccPlaceholder")}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeSubDeptDialog}>Cancel</Button>
+            <Button
+              disabled={!subDeptDeptId || !subDeptName.trim() || addSubDept.isPending || updateSubDept.isPending}
+              onClick={() =>
+                editingSubDept
+                  ? updateSubDept.mutate({ id: editingSubDept.id, department_id: subDeptDeptId, name: subDeptName.trim(), email_ids: subDeptEmails })
+                  : addSubDept.mutate({ department_id: subDeptDeptId, name: subDeptName.trim(), email_ids: subDeptEmails })
+              }
+            >
+              Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Sub Department Confirm */}
+      <AlertDialog open={subDeptDeleteOpen} onOpenChange={setSubDeptDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Sub Department</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete <strong>{editingSubDept?.name}</strong>? Existing tickets will keep their recorded Sub Department.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => editingSubDept && deleteSubDept.mutate(editingSubDept.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               Delete
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -29,6 +29,7 @@ export default function CreateTicket() {
   const [description, setDescription] = useState("");
   const [unitId, setUnitId] = useState("");
   const [issueDeptId, setIssueDeptId] = useState("");
+  const [subDeptId, setSubDeptId] = useState("");
   const [priority, setPriority] = useState("low");
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [voiceBlob, setVoiceBlob] = useState<Blob | null>(null);
@@ -58,6 +59,22 @@ export default function CreateTicket() {
     },
   });
 
+  // Sub Department options depend on the selected Issue Department.
+  const { data: subDepartments } = useQuery({
+    queryKey: ["sub_departments", issueDeptId],
+    queryFn: async () => {
+      const { data } = await supabase.from("sub_departments").select("*").eq("department_id", issueDeptId).order("name");
+      return data || [];
+    },
+    enabled: !!issueDeptId,
+  });
+
+  const handleIssueDeptChange = (value: string) => {
+    setIssueDeptId(value);
+    // Changing the department invalidates whatever Sub Department was picked.
+    setSubDeptId("");
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -76,6 +93,7 @@ export default function CreateTicket() {
         unit_id: unitId || null,
         department_id: profile?.department_id || null,
         issue_department_id: issueDeptId || null,
+        sub_department_id: subDeptId || null,
         raised_by: user.id,
         priority: priority as any,
         ticket_number: "TEMP",
@@ -199,7 +217,7 @@ export default function CreateTicket() {
                 </div>
                 <div className="space-y-2">
                   <Label>{t("createTicket.issueDepartment")} *</Label>
-                  <Select value={issueDeptId} onValueChange={setIssueDeptId} required>
+                  <Select value={issueDeptId} onValueChange={handleIssueDeptChange} required>
                     <SelectTrigger><SelectValue placeholder={t("createTicket.selectDepartmentPlaceholder")} /></SelectTrigger>
                     <SelectContent>
                       {departments?.map((d) => (
@@ -208,6 +226,23 @@ export default function CreateTicket() {
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2">
+                  <Label>{t("createTicket.subDepartment")}</Label>
+                  <Select value={subDeptId} onValueChange={setSubDeptId} disabled={!issueDeptId}>
+                    <SelectTrigger><SelectValue placeholder={t("createTicket.selectSubDepartmentPlaceholder")} /></SelectTrigger>
+                    <SelectContent>
+                      {subDepartments?.map((sd: any) => (
+                        <SelectItem key={sd.id} value={sd.id}>{sd.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {issueDeptId && subDepartments?.length === 0 && (
+                    <p className="text-xs text-muted-foreground">{t("createTicket.noSubDepartments")}</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label>{t("common.priority")}</Label>
                   <Select value={priority} onValueChange={setPriority}>

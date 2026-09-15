@@ -19,6 +19,7 @@ export const RELATIONSHIPS: Relationship[] = [
   { table: 'notifications', column: 'ticket_id', refTable: 'tickets', refColumn: 'id' },
   { table: 'profiles', column: 'department_id', refTable: 'departments', refColumn: 'id' },
   { table: 'profiles', column: 'unit_id', refTable: 'units', refColumn: 'id' },
+  { table: 'sub_departments', column: 'department_id', refTable: 'departments', refColumn: 'id' },
   { table: 'ticket_attachments', column: 'ticket_id', refTable: 'tickets', refColumn: 'id' },
   { table: 'ticket_attachments', column: 'uploaded_by', refTable: 'profiles', refColumn: 'user_id' },
   { table: 'ticket_history', column: 'ticket_id', refTable: 'tickets', refColumn: 'id' },
@@ -34,6 +35,7 @@ export const RELATIONSHIPS: Relationship[] = [
   { table: 'tickets', column: 'resolved_by', refTable: 'profiles', refColumn: 'user_id' },
   { table: 'tickets', column: 'department_id', refTable: 'departments', refColumn: 'id' },
   { table: 'tickets', column: 'issue_department_id', refTable: 'departments', refColumn: 'id' },
+  { table: 'tickets', column: 'sub_department_id', refTable: 'sub_departments', refColumn: 'id' },
   { table: 'tickets', column: 'unit_id', refTable: 'units', refColumn: 'id' },
 ];
 

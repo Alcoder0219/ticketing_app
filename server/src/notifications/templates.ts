@@ -46,6 +46,7 @@ const L = {
     raisedBy: 'Raised By',
     plant: 'Plant',
     department: 'Department',
+    subDepartment: 'Sub Department',
     priority: 'Priority',
     status: 'Status',
     targetDate: 'Target Date',
@@ -107,6 +108,7 @@ const L = {
     raisedBy: 'Aliyefungua',
     plant: 'Kiwanda',
     department: 'Idara',
+    subDepartment: 'Idara Ndogo',
     priority: 'Kipaumbele',
     status: 'Hali',
     targetDate: 'Tarehe Lengwa',
@@ -303,6 +305,7 @@ export interface TemplateContext {
   assigneeName?: string | null;
   actorName?: string | null;
   resolverName?: string | null;
+  subDepartmentName?: string | null;
   previousStatus?: string | null;
   newStatus?: string | null;
   rating?: number | null;
@@ -348,7 +351,7 @@ export const templates = {
     const body = `
       <p style="margin:0 0 14px;">${esc(t.hello(c.recipientName))}</p>
       <p style="margin:0;">${esc(t.raisedIntro)}</p>
-      ${detailTable(coreRows(c) + row(t.created, fmtDate(c.ticket.created_at)))}
+      ${detailTable(coreRows(c) + row(t.subDepartment, c.subDepartmentName ?? '') + row(t.created, fmtDate(c.ticket.created_at)))}
       ${quote(t.description, c.ticket.description)}
       <p style="margin:18px 0 0;">${esc(t.raisedOutro)}</p>
       ${button(c.ticketUrl, t.viewTicket)}`;
