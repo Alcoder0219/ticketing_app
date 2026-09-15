@@ -19,23 +19,53 @@ import { isAssignableRole } from '../auth/service.js';
 export const restRouter = Router();
 
 /**
+ * Resolves one schema path's configured default, tolerating the schema types
+ * whose normal `getDefault()` throws outside real document hydration.
+ *
+ * `SchemaType.getDefault()` routes array defaults (e.g. `cc_emails: { type:
+ * [String], default: [] }`) through the setter/cast pipeline, which needs a
+ * real Mongoose document (`this.$__`, an owner doc, etc.) and throws
+ * "Cannot read properties of undefined (reading 'indexedPaths')" when given
+ * a plain lean object instead — confirmed by reproducing it directly against
+ * a ticket missing `cc_emails` (any ticket created before CC email existed,
+ * or ported by the raw-driver Supabase migration, lacks it in storage). That
+ * throw was previously uncaught, so a single such ticket anywhere in a page
+ * of results failed the entire `/rest/query` call — the backend returned
+ * `{ data: null, error }`, and callers doing `data || []` rendered an empty
+ * list while a separate, unaffected `count` request still reported the true
+ * total (exactly the "counts show N, list is empty" symptom). Falling back
+ * to the schema's raw configured value (calling it if it's a factory
+ * function, as Mongoose itself does for a literal array/object default)
+ * gives the identical value without needing the cast machinery.
+ */
+function resolveSchemaDefault(schematype: any, obj: Record<string, any>): unknown {
+  try {
+    return schematype.getDefault(obj, false);
+  } catch {
+    try {
+      const raw = schematype.defaultValue;
+      if (raw === undefined) return undefined;
+      const value = typeof raw === 'function' ? raw() : raw;
+      return Array.isArray(value) ? [...value] : value;
+    } catch {
+      return undefined; // no safe default available — leave the field absent
+    }
+  }
+}
+
+/**
  * Mongoose fills in a schema's `default` for any path missing from the
  * stored BSON not only when a document is first created, but again every
  * time it's hydrated from a query result. A `.lean()` read skips hydration
- * entirely, so a document that's missing a field in storage — notably the
- * data ported over by the Supabase migration (migrateFromSupabase.ts writes
- * through the raw driver collection, bypassing Mongoose and its defaults
- * entirely) — would come back without that field, where the old hydrated
- * `doc.toJSON()` path would have shown its default. This reapplies those
- * defaults by hand so `.lean()` output stays byte-identical either way.
+ * entirely, so a document that's missing a field in storage would come back
+ * without it, where the old hydrated `doc.toJSON()` path would have shown
+ * its default. This reapplies those defaults by hand so `.lean()` output
+ * stays byte-identical either way.
  *
  * `onlyFields`, when given, restricts this to exactly the fields a Mongo
  * projection asked for (see buildProjection) — the rest were deliberately
  * excluded, not "missing", and get stripped by projectColumns() regardless,
- * so there's no reason to compute a default for them (a few schema paths,
- * e.g. array/Mixed fields, also error out of getDefault() when called
- * outside their normal document-hydration context, which restricting the
- * touched paths to what's actually needed sidesteps entirely).
+ * so there's no reason to compute a default for them.
  */
 function applyLeanDefaults(model: any, obj: Record<string, any>, onlyFields?: string[]): Record<string, any> {
   const paths = onlyFields ?? Object.keys(model.schema.paths);
@@ -43,7 +73,7 @@ function applyLeanDefaults(model: any, obj: Record<string, any>, onlyFields?: st
     if (obj[path] !== undefined) continue;
     const schematype = model.schema.path(path);
     if (!schematype) continue;
-    const def = schematype.getDefault(obj, false);
+    const def = resolveSchemaDefault(schematype, obj);
     if (def !== undefined) obj[path] = def;
   }
   return obj;
