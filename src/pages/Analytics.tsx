@@ -52,6 +52,7 @@ export default function Analytics() {
       const { data } = await q;
       return data || [];
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: tickets, isLoading } = useQuery({

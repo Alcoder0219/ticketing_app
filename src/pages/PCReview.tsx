@@ -92,6 +92,7 @@ export default function PCReview() {
       const { data } = await q;
       return data || [];
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: departments } = useQuery({
@@ -100,6 +101,7 @@ export default function PCReview() {
       const { data } = await supabase.from("departments").select("id,name").eq("is_active", true).order("name");
       return data || [];
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   /** Common plant/department/date-range/search filters shared by the overdue and unassigned queries. */

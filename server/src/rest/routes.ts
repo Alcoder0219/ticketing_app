@@ -18,6 +18,56 @@ import { isAssignableRole } from '../auth/service.js';
 
 export const restRouter = Router();
 
+/**
+ * Mongoose fills in a schema's `default` for any path missing from the
+ * stored BSON not only when a document is first created, but again every
+ * time it's hydrated from a query result. A `.lean()` read skips hydration
+ * entirely, so a document that's missing a field in storage — notably the
+ * data ported over by the Supabase migration (migrateFromSupabase.ts writes
+ * through the raw driver collection, bypassing Mongoose and its defaults
+ * entirely) — would come back without that field, where the old hydrated
+ * `doc.toJSON()` path would have shown its default. This reapplies those
+ * defaults by hand so `.lean()` output stays byte-identical either way.
+ *
+ * `onlyFields`, when given, restricts this to exactly the fields a Mongo
+ * projection asked for (see buildProjection) — the rest were deliberately
+ * excluded, not "missing", and get stripped by projectColumns() regardless,
+ * so there's no reason to compute a default for them (a few schema paths,
+ * e.g. array/Mixed fields, also error out of getDefault() when called
+ * outside their normal document-hydration context, which restricting the
+ * touched paths to what's actually needed sidesteps entirely).
+ */
+function applyLeanDefaults(model: any, obj: Record<string, any>, onlyFields?: string[]): Record<string, any> {
+  const paths = onlyFields ?? Object.keys(model.schema.paths);
+  for (const path of paths) {
+    if (obj[path] !== undefined) continue;
+    const schematype = model.schema.path(path);
+    if (!schematype) continue;
+    const def = schematype.getDefault(obj, false);
+    if (def !== undefined) obj[path] = def;
+  }
+  return obj;
+}
+
+/**
+ * Mirrors the Mongoose `toJSON` transform every model shares (see
+ * models/_base.ts): defaults backfilled, `_id` -> `id`, Dates -> ISO strings.
+ * Applied by hand to `.lean()` results (plain objects, never hydrated into
+ * Mongoose documents) so read-only queries skip document-construction
+ * overhead while producing byte-identical output to `doc.toJSON()`.
+ */
+function leanToJSON(model: any, doc: Record<string, any>, onlyFields?: string[]): Record<string, any> {
+  const ret = applyLeanDefaults(model, { ...doc }, onlyFields);
+  if (ret._id !== undefined) {
+    ret.id = ret._id;
+    delete ret._id;
+  }
+  for (const k of Object.keys(ret)) {
+    if (ret[k] instanceof Date) ret[k] = ret[k].toISOString();
+  }
+  return ret;
+}
+
 interface QueryBody {
   table: string;
   action: 'select' | 'insert' | 'update' | 'delete' | 'upsert';
@@ -151,40 +201,71 @@ function mergeFilters(a: Record<string, any>, b: Record<string, any>): Record<st
   return { $and: [a, b] };
 }
 
-/** Resolve PostgREST embedded resources (to-one joins) onto result rows. */
+/**
+ * Resolve PostgREST embedded resources (to-one joins) onto result rows.
+ *
+ * Each embed is one batched `$in` lookup (never per-row — no N+1 here), and
+ * the embeds are independent of each other, so they run concurrently rather
+ * than one after another. Reads are `.lean()` since these rows are only ever
+ * serialized, never mutated.
+ */
 async function resolveEmbeds(
   parentTable: string,
   rows: Record<string, any>[],
   embeds: EmbedSpec[],
 ): Promise<void> {
-  for (const embed of embeds) {
+  await Promise.all(
+    embeds.map(async (embed) => {
+      const rel = resolveRelationship(parentTable, embed.table, embed.constraint);
+      if (!rel) {
+        // Unknown relationship: expose null so the client doesn't crash.
+        for (const row of rows) row[embed.alias] = null;
+        return;
+      }
+      const refModel = models[rel.refTable];
+      if (!refModel) {
+        for (const row of rows) row[embed.alias] = null;
+        return;
+      }
+      const localValues = [...new Set(rows.map((r) => r[rel.column]).filter((v) => v != null))];
+      const refField = toMongoField(rel.refColumn);
+      const refDocs = localValues.length
+        ? await refModel.find({ [refField]: { $in: localValues } }).lean()
+        : [];
+      const byKey = new Map<string, any>();
+      for (const doc of refDocs) {
+        const json = leanToJSON(refModel, doc);
+        const key = String(json[rel.refColumn]);
+        byKey.set(key, projectColumns(json, embed.columns));
+      }
+      for (const row of rows) {
+        const v = row[rel.column];
+        row[embed.alias] = v != null && byKey.has(String(v)) ? byKey.get(String(v)) : null;
+      }
+    }),
+  );
+}
+
+/**
+ * Mongo-side projection so a narrow `select("id,name")` doesn't pull an
+ * entire wide document (e.g. every ticket field) across the wire only to
+ * discard most of it in projectColumns() afterward. Skipped for `select("*")`
+ * (returns null — fetch every field, unchanged behavior). Always keeps `_id`
+ * (needed for the `id` transform) and any local FK column an embed needs to
+ * join on, even when not explicitly requested — projectColumns() still trims
+ * those back out of the final response afterward.
+ */
+function buildProjection(parentTable: string, parsed: { base: string[]; embeds: EmbedSpec[] }): Record<string, 1> | null {
+  if (parsed.base.includes('*')) return null;
+  const fields = new Set<string>(['_id']);
+  for (const c of parsed.base) fields.add(toMongoField(c));
+  for (const embed of parsed.embeds) {
     const rel = resolveRelationship(parentTable, embed.table, embed.constraint);
-    if (!rel) {
-      // Unknown relationship: expose null so the client doesn't crash.
-      for (const row of rows) row[embed.alias] = null;
-      continue;
-    }
-    const refModel = models[rel.refTable];
-    if (!refModel) {
-      for (const row of rows) row[embed.alias] = null;
-      continue;
-    }
-    const localValues = [...new Set(rows.map((r) => r[rel.column]).filter((v) => v != null))];
-    const refField = toMongoField(rel.refColumn);
-    const refDocs = localValues.length
-      ? await refModel.find({ [refField]: { $in: localValues } })
-      : [];
-    const byKey = new Map<string, any>();
-    for (const doc of refDocs) {
-      const json = doc.toJSON();
-      const key = String(json[rel.refColumn]);
-      byKey.set(key, projectColumns(json, embed.columns));
-    }
-    for (const row of rows) {
-      const v = row[rel.column];
-      row[embed.alias] = v != null && byKey.has(String(v)) ? byKey.get(String(v)) : null;
-    }
+    if (rel) fields.add(rel.column);
   }
+  const projection: Record<string, 1> = {};
+  for (const f of fields) projection[f] = 1;
+  return projection;
 }
 
 restRouter.post('/query', requireAuth, async (req, res) => {
@@ -206,7 +287,11 @@ restRouter.post('/query', requireAuth, async (req, res) => {
         return res.json({ data: null, error: null, count });
       }
 
+      const parsed = parseSelect(body.select);
+      const projection = buildProjection(body.table, parsed);
+
       let q = model.find(filter);
+      if (projection) q = q.select(projection);
 
       if (body.order?.length) {
         const sort: Record<string, 1 | -1> = {};
@@ -220,18 +305,20 @@ restRouter.post('/query', requireAuth, async (req, res) => {
         if (typeof body.limit === 'number') q = q.limit(body.limit);
       }
 
-      const docs = await q.exec();
-      const parsed = parseSelect(body.select);
-      let rows = docs.map((d) => d.toJSON() as Record<string, any>);
+      // The row fetch and the exact-count are independent reads of the same
+      // filter — no reason to wait for one before starting the other.
+      const [docs, count] = await Promise.all([
+        q.lean().exec(),
+        body.count === 'exact' ? model.countDocuments(filter) : Promise.resolve(undefined),
+      ]);
+      const projectedFields = projection ? Object.keys(projection) : undefined;
+      let rows = docs.map((d) => leanToJSON(model, d as Record<string, any>, projectedFields));
       if (parsed.embeds.length) await resolveEmbeds(body.table, rows, parsed.embeds);
       rows = rows.map((r) => {
         const projected = projectColumns(r, parsed.base);
         for (const e of parsed.embeds) projected[e.alias] = r[e.alias];
         return projected;
       });
-
-      const count =
-        body.count === 'exact' ? await model.countDocuments(filter) : undefined;
 
       if (body.single || body.maybeSingle) {
         if (rows.length === 0) {
@@ -377,8 +464,11 @@ restRouter.post('/query', requireAuth, async (req, res) => {
     // ── DELETE ────────────────────────────────────────────────────────────
     if (body.action === 'delete') {
       const deleteFilter = mergeFilters(userFilter, authFilterFor(body.table, ctx));
-      const toDelete = await model.find(deleteFilter);
-      const rows = toDelete.map((d) => d.toJSON());
+      // Must read the matching rows before deleting them — running the read
+      // concurrently with (or after) deleteMany risks it seeing fewer rows
+      // than were actually deleted.
+      const toDelete = await model.find(deleteFilter).lean();
+      const rows = toDelete.map((d) => leanToJSON(model, d as Record<string, any>));
       await model.deleteMany(deleteFilter);
       rows.forEach((r) => emitChange(body.table, 'DELETE', r));
       if (!body.returning) return res.json({ data: null, error: null });

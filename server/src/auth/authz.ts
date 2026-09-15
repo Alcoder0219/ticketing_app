@@ -49,6 +49,12 @@ export async function getUserDepartmentId(userId: string): Promise<string | null
   return (p?.department_id as string) ?? null;
 }
 
+/** The permissions of a role that's already been resolved (skips the user_roles lookup). */
+async function getRolePermissionsForRole(role: string): Promise<Record<string, any>> {
+  const row = await roles.findOne({ name: { $in: roleNameVariants(role) } }).lean();
+  return (row?.permissions ?? {}) as Record<string, any>;
+}
+
 /**
  * The `roles` row for a user's highest-priority role.
  * Resolving through getUserRole() (rather than an arbitrary user_roles.findOne())
@@ -58,8 +64,7 @@ export async function getUserDepartmentId(userId: string): Promise<string | null
 async function getRolePermissions(userId: string): Promise<Record<string, any>> {
   const role = await getUserRole(userId);
   if (!role) return {};
-  const row = await roles.findOne({ name: { $in: roleNameVariants(role) } }).lean();
-  return ((row?.permissions ?? {}) as Record<string, any>) ?? {};
+  return getRolePermissionsForRole(role);
 }
 
 /** Port of public.user_can_view_all_tickets(_user_id): roles.permissions.tickets.viewAll. */
@@ -193,27 +198,44 @@ export interface AuthContext {
   isHod: boolean;
 }
 
-/** Build the per-request authorization context (used by the query router). */
+/**
+ * Build the per-request authorization context (used by the query router).
+ *
+ * This runs on EVERY authenticated request, so it deliberately does not call
+ * getUserRole()/hasRole()/getRolePermissions() the way other callers do — each
+ * of those independently re-queries `user_roles` (and getRolePermissions also
+ * re-queries `roles`), and this function used to call that whole family eight
+ * times over, refetching the same rows repeatedly. Instead it fetches the
+ * user's role rows and profile once and derives every value below from that
+ * single result — same data, same logic (see getUserRole()'s priority sort
+ * and hasRole()'s exact-match semantics, mirrored here), just without the
+ * redundant round trips. The individually-exported helpers are untouched and
+ * still correct when called on their own (e.g. from rpc.ts).
+ */
 export async function buildAuthContext(userId: string, email: string): Promise<AuthContext> {
-  const [
-    role,
-    departmentId,
-    departmentScope,
-    plantAccess,
-    canViewAllTickets,
-    isSuperAdmin,
-    isAdmin,
-    isHod,
-  ] = await Promise.all([
-    getUserRole(userId),
-    getUserDepartmentId(userId),
-    getUserDepartmentScope(userId),
-    getEffectivePlantAccess(userId),
-    userCanViewAllTickets(userId),
-    hasRole(userId, 'super_admin'),
-    hasRole(userId, 'admin'),
-    hasRole(userId, 'hod'),
+  const [roleRows, profile] = await Promise.all([
+    user_roles.find({ user_id: userId }).lean(),
+    profiles.findOne({ user_id: userId }).lean(),
   ]);
+
+  const roleNames = roleRows.map((r: any) => r.role as string);
+  const role =
+    roleNames.length === 0
+      ? null
+      : [...roleNames].sort((a, b) => (ROLE_PRIORITY[a] ?? 999) - (ROLE_PRIORITY[b] ?? 999))[0];
+  const isSuperAdmin = roleNames.includes('super_admin');
+  const isAdmin = roleNames.includes('admin');
+  const isHod = roleNames.includes('hod');
+  const departmentId = (profile?.department_id as string | undefined) ?? null;
+
+  const permissions = role ? await getRolePermissionsForRole(role) : {};
+  const canViewAllTickets = permissions?.tickets?.viewAll === true;
+  const departmentScope: 'all' | 'own' = permissions?.department === 'own' ? 'own' : 'all';
+
+  // getEffectivePlantAccess()'s own first step is "super_admin ⇒ UNRESTRICTED";
+  // skip the call (and its redundant role lookup) when we already know that.
+  const plantAccess = isSuperAdmin ? UNRESTRICTED : await getEffectivePlantAccess(userId);
+
   return {
     userId,
     email,

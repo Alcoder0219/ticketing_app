@@ -78,6 +78,7 @@ export default function PendingTickets() {
       const { data } = await supabase.from("departments").select("id,name").eq("is_active", true).order("name");
       return data || [];
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   const isSuperOrAdmin = role === "super_admin" || role === "admin";
@@ -126,21 +127,25 @@ export default function PendingTickets() {
   const { data: teamMembers } = useQuery({
     queryKey: ["team-members", profile?.department_id],
     queryFn: async () => {
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, name")
-        .eq("department_id", profile!.department_id!);
-
-      // Filter to only assigned_person roles
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id, role")
-        .in("role", ["assigned_person"]);
+      // Neither request depends on the other's result — only the final
+      // filter below joins them — so they run concurrently.
+      const [{ data: profiles }, { data: roles }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("user_id, name")
+          .eq("department_id", profile!.department_id!),
+        // Filter to only assigned_person roles
+        supabase
+          .from("user_roles")
+          .select("user_id, role")
+          .in("role", ["assigned_person"]),
+      ]);
 
       const roleMap = new Map(roles?.map(r => [r.user_id, r.role]) || []);
       return (profiles || []).filter(p => roleMap.has(p.user_id) && p.user_id !== user!.id);
     },
     enabled: isHOD && !!profile?.department_id,
+    staleTime: 60 * 1000,
   });
 
   const assignMutation = useMutation({

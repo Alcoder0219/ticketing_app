@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+﻿import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -161,11 +161,16 @@ export default function ManageUsers() {
   });
 
   const { data: departments } = useQuery({
-    queryKey: ["departments"],
+    // "all" distinguishes this (every department, active or not — needed so
+    // an already-assigned inactive department still shows its name) from the
+    // active-only "departments" query other pages use, so the two never
+    // collide in the shared query cache.
+    queryKey: ["departments", "all"],
     queryFn: async () => {
       const { data } = await supabase.from("departments").select("*").order("name");
       return data || [];
     },
+    staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchInterval: false,
   });
@@ -176,6 +181,7 @@ export default function ManageUsers() {
       const { data } = await supabase.from("units").select("*").order("name");
       return data || [];
     },
+    staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchInterval: false,
   });
@@ -187,6 +193,7 @@ export default function ManageUsers() {
       if (error) throw error;
       return ((data ?? []) as Array<{ name: string }>).map((r) => r.name);
     },
+    staleTime: 60 * 1000,
     refetchOnWindowFocus: false,
   });
 
@@ -230,8 +237,16 @@ export default function ManageUsers() {
     onError: (err: Error) => { toast({ title: t("messages.error"), description: err.message, variant: "destructive" }); },
   });
 
+  // O(1) row lookups instead of scanning the full departments/units/user_roles
+  // arrays once per rendered row (userRoles in particular is the whole
+  // organization's role table, re-scanned on every row otherwise).
+  const userRolesByUserId = useMemo(
+    () => new Map((userRoles ?? []).map((r: any) => [r.user_id, r])),
+    [userRoles],
+  );
+
   const getRoleForUser = (userId: string): AppRole => {
-    const found = userRoles?.find((r) => r.user_id === userId);
+    const found = userRolesByUserId.get(userId);
     return (found?.role as AppRole) || "user";
   };
 
@@ -414,14 +429,17 @@ export default function ManageUsers() {
 
   const getInitials = (name: string) => name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
 
+  const departmentsById = useMemo(() => new Map((departments ?? []).map((d: any) => [d.id, d])), [departments]);
+  const unitsById = useMemo(() => new Map((units ?? []).map((u: any) => [u.id, u])), [units]);
+
   const getDeptName = (deptId: string | null) => {
     if (!deptId) return "â€”";
-    return departments?.find(d => d.id === deptId)?.name || "â€”";
+    return departmentsById.get(deptId)?.name || "â€”";
   };
 
   const getUnitName = (unitId: string | null) => {
     if (!unitId) return "â€”";
-    return units?.find(u => u.id === unitId)?.name || "â€”";
+    return unitsById.get(unitId)?.name || "â€”";
   };
 
   return (

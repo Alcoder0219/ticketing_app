@@ -83,11 +83,14 @@ export default function DepartmentTickets() {
   const pagination = usePagination({ resetKey: filterKey });
 
   const { data: departments } = useQuery({
-    queryKey: ["departments"],
+    // "active" so this never collides with the unfiltered (active + inactive)
+    // "departments" cache entry Settings/Manage Users use for administration.
+    queryKey: ["departments", "active"],
     queryFn: async () => {
       const { data } = await supabase.from("departments").select("*").eq("is_active", true).order("name");
       return data || [];
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   // Only offer plants this role may actually read, matching the other pages.
@@ -99,6 +102,7 @@ export default function DepartmentTickets() {
       const { data } = await q;
       return data || [];
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   // All users with the assignable_person role — scan-free source for the
@@ -112,6 +116,7 @@ export default function DepartmentTickets() {
       const { data } = await supabase.from("profiles").select("user_id,name").in("user_id", ids).order("name");
       return data || [];
     },
+    staleTime: 60 * 1000,
   });
 
   /** Role scoping shared by every count/rows query below. */
@@ -215,6 +220,7 @@ export default function DepartmentTickets() {
       return data || [];
     },
     enabled: isHOD && !!profile?.department_id,
+    staleTime: 60 * 1000,
   });
 
   const assignMutation = useMutation({

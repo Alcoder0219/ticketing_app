@@ -165,6 +165,7 @@ export default function Reports() {
       return data || [];
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: departments = [] } = useQuery({
@@ -174,6 +175,7 @@ export default function Reports() {
       return data || [];
     },
     enabled: !!user,
+    staleTime: 5 * 60 * 1000,
   });
 
   const selectedUnitNames = unitFilter ?? units.map(u => u.name);

@@ -41,6 +41,11 @@ export function AppLayout({ children, title }: AppLayoutProps) {
       return data || [];
     },
     enabled: !!user,
+    // AppLayout wraps every page, so this query re-mounts on every
+    // navigation; a live socket subscription (below) already invalidates it
+    // the moment a notification actually changes, so there's no need to
+    // refetch it again on every single page switch in between.
+    staleTime: 30 * 1000,
   });
 
   const markRead = useMutation({

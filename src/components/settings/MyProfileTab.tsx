@@ -65,10 +65,12 @@ export function MyProfileTab() {
   const { data: departments } = useQuery({
     queryKey: ["all-departments-myprofile"],
     queryFn: async () => (await supabase.from("departments").select("id,name,is_active")).data || [],
+    staleTime: 5 * 60 * 1000,
   });
   const { data: units } = useQuery({
     queryKey: ["all-units-myprofile"],
     queryFn: async () => (await supabase.from("units").select("id,name")).data || [],
+    staleTime: 5 * 60 * 1000,
   });
 
   const deptName = departments?.find((d) => d.id === profile?.department_id)?.name || "Not Assigned";

@@ -155,6 +155,7 @@ export default function AssignedTickets() {
       return profiles || [];
     },
     enabled: (isHOD || isSuperOrAdmin) && !!profile?.department_id,
+    staleTime: 60 * 1000,
   });
 
   // Dropdown options sourced from small reference tables/roles instead of
@@ -165,6 +166,7 @@ export default function AssignedTickets() {
       const { data } = await supabase.from("departments").select("id,name").eq("is_active", true).order("name");
       return data || [];
     },
+    staleTime: 5 * 60 * 1000,
   });
   const { data: units } = useQuery({
     queryKey: ["units-active", allowedUnitIds?.join(",") ?? "all"],
@@ -174,6 +176,7 @@ export default function AssignedTickets() {
       const { data } = await q;
       return data || [];
     },
+    staleTime: 5 * 60 * 1000,
   });
   const { data: assignableUsers } = useQuery({
     queryKey: ["assignable-users"],
@@ -184,6 +187,7 @@ export default function AssignedTickets() {
       const { data } = await supabase.from("profiles").select("user_id,name").in("user_id", ids).order("name");
       return data || [];
     },
+    staleTime: 60 * 1000,
   });
 
   const reassignMutation = useMutation({

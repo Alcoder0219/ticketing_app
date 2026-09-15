@@ -84,11 +84,15 @@ export default function Settings() {
   const [sessionTimeout, setSessionTimeout] = useState("4hr");
 
   const { data: departments, isLoading: deptsLoading } = useQuery({
-    queryKey: ["departments"],
+    // "all" (active + inactive, needed for this management table) so this
+    // never collides with the active-only "departments" cache entry used by
+    // Create Ticket / Department Tickets, which fetch a different result set.
+    queryKey: ["departments", "all"],
     queryFn: async () => {
       const { data } = await supabase.from("departments").select("*").order("name");
       return data || [];
     },
+    staleTime: 60 * 1000,
     refetchOnWindowFocus: false,
     refetchInterval: false,
   });
@@ -161,7 +165,7 @@ export default function Settings() {
       const { error } = await supabase.from("departments").insert({ name });
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["departments"] }); toast({ title: "Department Added" }); setDeptDialogOpen(false); setDeptName(""); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["departments", "all"] }); toast({ title: "Department Added" }); setDeptDialogOpen(false); setDeptName(""); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
@@ -170,7 +174,7 @@ export default function Settings() {
       const { error } = await supabase.from("departments").update({ name }).eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["departments"] }); toast({ title: "Department Updated" }); setDeptDialogOpen(false); setEditingDept(null); setDeptName(""); },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["departments", "all"] }); toast({ title: "Department Updated" }); setDeptDialogOpen(false); setEditingDept(null); setDeptName(""); },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
@@ -181,16 +185,16 @@ export default function Settings() {
       return id;
     },
     onMutate: async (id: string) => {
-      await queryClient.cancelQueries({ queryKey: ["departments"] });
-      const previousDepartments = queryClient.getQueryData<any[]>(["departments"]);
-      queryClient.setQueryData(["departments"], (old: any[] | undefined) =>
+      await queryClient.cancelQueries({ queryKey: ["departments", "all"] });
+      const previousDepartments = queryClient.getQueryData<any[]>(["departments", "all"]);
+      queryClient.setQueryData(["departments", "all"], (old: any[] | undefined) =>
         old?.filter((dept) => dept.id !== id) ?? []
       );
       return { previousDepartments };
     },
     onSuccess: () => { toast({ title: "Department Deleted" }); setDeptDeleteOpen(false); setEditingDept(null); },
     onError: (e: Error, _id, context) => {
-      queryClient.setQueryData(["departments"], context?.previousDepartments);
+      queryClient.setQueryData(["departments", "all"], context?.previousDepartments);
       toast({ title: "Error", description: e.message, variant: "destructive" });
     },
   });
@@ -202,19 +206,19 @@ export default function Settings() {
       return { id, is_active };
     },
     onMutate: async ({ id, is_active }) => {
-      await queryClient.cancelQueries({ queryKey: ["departments"] });
-      const previous = queryClient.getQueryData<any[]>(["departments"]);
-      queryClient.setQueryData(["departments"], (old: any[] | undefined) =>
+      await queryClient.cancelQueries({ queryKey: ["departments", "all"] });
+      const previous = queryClient.getQueryData<any[]>(["departments", "all"]);
+      queryClient.setQueryData(["departments", "all"], (old: any[] | undefined) =>
         old?.map((d) => (d.id === id ? { ...d, is_active } : d)) ?? []
       );
       return { previous };
     },
     onSuccess: ({ is_active }) => {
       toast({ title: is_active ? "Department marked as Active" : "Department marked as Inactive" });
-      queryClient.invalidateQueries({ queryKey: ["departments"] });
+      queryClient.invalidateQueries({ queryKey: ["departments", "all"] });
     },
     onError: (e: Error, _v, context: any) => {
-      queryClient.setQueryData(["departments"], context?.previous);
+      queryClient.setQueryData(["departments", "all"], context?.previous);
       toast({ title: "Error", description: e.message, variant: "destructive" });
     },
   });

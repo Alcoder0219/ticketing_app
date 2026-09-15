@@ -99,10 +99,12 @@ export default function Dashboard() {
       if (allowedUnitNames) q = q.in("name", allowedUnitNames.length ? allowedUnitNames : ["__none__"]);
       return (await q).data || [];
     },
+    staleTime: 5 * 60 * 1000,
   });
   const { data: departments } = useQuery({
     queryKey: ["filter-departments"],
     queryFn: async () => (await supabase.from("departments").select("id, name").eq("is_active", true).order("name")).data || [],
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: tickets, isLoading } = useQuery({

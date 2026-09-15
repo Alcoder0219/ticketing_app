@@ -42,6 +42,7 @@ export default function CreateTicket() {
       const { data } = await supabase.from("units").select("*").order("name");
       return data || [];
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   // Auto-fill unit from user's profile (user can still change it)
@@ -52,16 +53,20 @@ export default function CreateTicket() {
   }, [profile, unitId]);
 
   const { data: departments } = useQuery({
-    queryKey: ["departments"],
+    // "active" so this never collides with the unfiltered (active + inactive)
+    // "departments" cache entry Settings/Manage Users use for administration.
+    queryKey: ["departments", "active"],
     queryFn: async () => {
       const { data } = await supabase.from("departments").select("*").eq("is_active", true).order("name");
       return data || [];
     },
+    staleTime: 5 * 60 * 1000,
   });
 
   // Sub Department options depend on the selected Issue Department.
   const { data: subDepartments } = useQuery({
     queryKey: ["sub_departments", issueDeptId],
+    staleTime: 60 * 1000,
     queryFn: async () => {
       const { data } = await supabase.from("sub_departments").select("*").eq("department_id", issueDeptId).order("name");
       return data || [];
