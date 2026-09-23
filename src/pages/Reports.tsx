@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -67,12 +67,12 @@ const StatusBadge = ({ status }: { status: StatusKey }) => {
 };
 
 const Stars = ({ rating }: { rating: number | null }) => {
-  if (!rating) return <span className="text-muted-foreground">â€”</span>;
+  if (!rating) return <span className="text-muted-foreground">—</span>;
   const r = Math.round(rating);
   return (
     <span className="text-yellow-500 text-[13px]">
-      {"â˜…".repeat(r)}
-      <span className="text-gray-300">{"â˜†".repeat(5 - r)}</span>
+      {"★".repeat(r)}
+      <span className="text-gray-300">{"☆".repeat(5 - r)}</span>
     </span>
   );
 };
@@ -225,12 +225,12 @@ export default function Reports() {
       .map((t: any) => ({
         id: t.id,
         ticket_number: t.ticket_number,
-        unit: t.unit?.name || "â€”",
-        department: t.dept?.name || "â€”",
+        unit: t.unit?.name || "—",
+        department: t.dept?.name || "—",
         issue_date: t.created_at,
         issue_date_label: formatDateShort(t.created_at),
         issues: t.title || "",
-        raised_by: t.raiser?.name || "â€”",
+        raised_by: t.raiser?.name || "—",
         status: displayStatus(t.status),
         aging: getAppCalendarDayDiff(today, t.created_at),
       }));
@@ -245,14 +245,14 @@ export default function Reports() {
         return {
           id: t.id,
           ticket_number: t.ticket_number,
-          unit: t.unit?.name || "â€”",
-          department: t.dept?.name || "â€”",
+          unit: t.unit?.name || "—",
+          department: t.dept?.name || "—",
           resolved_date: resolvedAt,
           resolved_date_label: formatDate(resolvedAt),
           aging: getAppCalendarDayDiff(resolvedAt, t.created_at),
-          technician: t.assignee?.name || "â€”",
-          resolved_by: t.closer?.name || t.assignee?.name || "â€”",
-          raised_by: t.raiser?.name || "â€”",
+          technician: t.assignee?.name || "—",
+          resolved_by: t.closer?.name || t.assignee?.name || "—",
+          raised_by: t.raiser?.name || "—",
           rating: ratingRow?.rating ?? null,
           rating_remarks: ratingRow?.feedback || "",
         };
@@ -392,7 +392,7 @@ export default function Reports() {
             <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="h-9">
                 <CalendarIcon className="h-4 w-4 mr-2" />
-                {format(dateRange.from, "dd-MM-yyyy")} â€“ {format(dateRange.to, "dd-MM-yyyy")}
+                {format(dateRange.from, "dd-MM-yyyy")} – {format(dateRange.to, "dd-MM-yyyy")}
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0 bg-popover" align="start">
@@ -514,7 +514,7 @@ export default function Reports() {
                   <td className="px-2.5 py-1.5 whitespace-nowrap">{r.resolved_by}</td>
                   <td className="px-2.5 py-1.5 whitespace-nowrap">{r.raised_by}</td>
                   <td className="px-2.5 py-1.5"><Stars rating={r.rating} /></td>
-                  <td className="px-2.5 py-1.5 max-w-[160px] truncate" title={r.rating_remarks}>{r.rating_remarks || "â€”"}</td>
+                  <td className="px-2.5 py-1.5 max-w-[160px] truncate" title={r.rating_remarks}>{r.rating_remarks || "—"}</td>
                   <td className="px-2.5 py-1.5 text-center"><ViewEyeButton ticketNumber={r.ticket_number} /></td>
                 </tr>
               ))}
@@ -562,7 +562,7 @@ function TableCard({
           <Input
             value={search}
             onChange={(e) => onSearch(e.target.value)}
-            placeholder="Searchâ€¦"
+            placeholder="Search…"
             className="h-8 pl-8 text-xs"
           />
         </div>
@@ -593,7 +593,7 @@ function TableCard({
       </div>
 
       <div className="flex items-center justify-between gap-2 px-3 py-2 border-t text-xs text-muted-foreground">
-        <span>Showing {start}â€“{end} of {total} tickets</span>
+        <span>Showing {start}–{end} of {total} tickets</span>
         <div className="flex items-center gap-2">
           <Select value={String(size)} onValueChange={(v) => { onSize(Number(v)); onPage(1); }}>
             <SelectTrigger className="h-7 w-[80px] text-xs"><SelectValue /></SelectTrigger>

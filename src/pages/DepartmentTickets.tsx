@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -369,8 +369,8 @@ export default function DepartmentTickets() {
                             </div>
                             <h3 className="text-sm font-medium text-foreground truncate">{ticket.title}</h3>
                             <div className="flex items-center gap-x-4 gap-y-1 mt-1.5 text-xs text-muted-foreground flex-wrap min-w-0">
-                              <span className="truncate">From: {(ticket as any).raiser?.name || "â€”"}</span>
-                              <span className="truncate">Dept: {(ticket as any).issue_dept?.name || "â€”"}</span>
+                              <span className="truncate">From: {(ticket as any).raiser?.name || "—"}</span>
+                              <span className="truncate">Dept: {(ticket as any).issue_dept?.name || "—"}</span>
                               {(ticket as any).assignee?.name && <span className="truncate">Assigned: {(ticket as any).assignee.name}</span>}
                               <span className="flex items-center gap-1">
                                 Aging:{" "}

@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/AppLayout";
 import { Button } from "@/components/ui/button";
@@ -572,7 +572,7 @@ function UploadVideoModal({
                     ? "Click to replace current video (optional)"
                     : "Click to select or drag and drop video here"}
               </p>
-              <p className="text-xs text-muted-foreground mt-1">MP4, WEBM, MOV â€” max 500MB</p>
+              <p className="text-xs text-muted-foreground mt-1">MP4, WEBM, MOV — max 500MB</p>
               <input
                 type="file"
                 accept="video/mp4,video/webm,video/quicktime"
@@ -591,7 +591,7 @@ function UploadVideoModal({
           <div className="space-y-2">
             <Label>Thumbnail Image (optional)</Label>
             <label className="block border border-dashed rounded-lg p-3 text-center cursor-pointer hover:border-primary/50 transition-colors text-sm">
-              {thumbFile ? thumbFile.name : "Upload thumbnail image (JPG, PNG â€” 16:9 recommended)"}
+              {thumbFile ? thumbFile.name : "Upload thumbnail image (JPG, PNG — 16:9 recommended)"}
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp"

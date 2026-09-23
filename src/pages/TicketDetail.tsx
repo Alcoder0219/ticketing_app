@@ -1,4 +1,4 @@
-﻿import { AppLayout } from "@/components/AppLayout";
+import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PriorityBadge } from "@/components/PriorityBadge";
@@ -386,7 +386,7 @@ export default function TicketDetail() {
               onClick={() => {
                 const assignedName = (ticket as any).assigned_profile?.name || "unassigned";
                 const slaDue = ticket.sla_due_at ? formatDate(ticket.sla_due_at, true) : "n/a";
-                const prefillMessage = `I have a question about Ticket #${ticket.ticket_number} â€” ${ticket.title}. Status: ${statusMap[ticket.status]}. Assigned to: ${assignedName}. SLA due: ${slaDue}.`;
+                const prefillMessage = `I have a question about Ticket #${ticket.ticket_number} — ${ticket.title}. Status: ${statusMap[ticket.status]}. Assigned to: ${assignedName}. SLA due: ${slaDue}.`;
                 navigate("/ai-assistant", {
                   state: {
                     prefillMessage,
@@ -519,7 +519,7 @@ export default function TicketDetail() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-xs text-muted-foreground">
-                    Resolved by {resolverName || (ticket as any).closed_by_profile?.name || "â€”"}
+                    Resolved by {resolverName || (ticket as any).closed_by_profile?.name || "—"}
                     {(ticket as any).resolved_at ? ` on ${formatDate((ticket as any).resolved_at, true)}` : ""}
                   </p>
                   <div className="grid grid-cols-3 gap-3">
@@ -600,7 +600,7 @@ export default function TicketDetail() {
                         <div className="pb-6">
                           <p className="text-sm font-medium">{item.action}</p>
                           <p className="text-xs text-muted-foreground">
-                            by {(item as any).performer?.name} â€¢ {formatDate(item.created_at, true)}
+                            by {(item as any).performer?.name} • {formatDate(item.created_at, true)}
                           </p>
                           {item.remarks && <p className="text-sm text-muted-foreground mt-1 bg-muted/50 rounded-md p-2">{item.remarks}</p>}
                           {item.new_status && <div className="mt-1"><StatusBadge status={statusMap[item.new_status]} /></div>}
@@ -672,8 +672,8 @@ export default function TicketDetail() {
             <Card className="border shadow-sm">
               <CardHeader><CardTitle className="text-sm font-semibold">{t("ticket.details")}</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                <DetailRow icon={<Building2 className="h-4 w-4" />} label="Unit" value={(ticket as any).unit?.name || "â€”"} />
-                <DetailRow icon={<Building2 className="h-4 w-4" />} label="Issue Dept" value={(ticket as any).issue_dept?.name || "â€”"} />
+                <DetailRow icon={<Building2 className="h-4 w-4" />} label="Unit" value={(ticket as any).unit?.name || "—"} />
+                <DetailRow icon={<Building2 className="h-4 w-4" />} label="Issue Dept" value={(ticket as any).issue_dept?.name || "—"} />
                 {(ticket as any).sub_dept?.name && (
                   <DetailRow icon={<Building2 className="h-4 w-4" />} label="Sub Department" value={(ticket as any).sub_dept.name} />
                 )}
@@ -720,7 +720,7 @@ export default function TicketDetail() {
             <Card className="border shadow-sm">
               <CardHeader><CardTitle className="text-sm font-semibold">{t("ticket.raisedBy")}</CardTitle></CardHeader>
               <CardContent className="space-y-1">
-                <p className="text-sm font-medium">{(ticket as any).raiser?.name || "â€”"}</p>
+                <p className="text-sm font-medium">{(ticket as any).raiser?.name || "—"}</p>
                 <p className="text-xs text-muted-foreground">{(ticket as any).raiser?.employee_id || ""}</p>
                 <p className="text-xs text-muted-foreground">{(ticket as any).raiser?.contact || ""}</p>
               </CardContent>
@@ -750,7 +750,7 @@ export default function TicketDetail() {
       <Dialog open={reopenOpen} onOpenChange={setReopenOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Reopen Ticket â€” {ticket?.ticket_number}</DialogTitle>
+            <DialogTitle>Reopen Ticket — {ticket?.ticket_number}</DialogTitle>
             <DialogDescription>{t("ticket.reopenExplain")}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">

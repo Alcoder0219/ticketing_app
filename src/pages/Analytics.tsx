@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -260,7 +260,7 @@ export default function Analytics() {
                     <TableRow key={t.name}>
                       <TableCell className="font-medium">{t.name}</TableCell>
                       <TableCell className="text-right">{t.closed}</TableCell>
-                      <TableCell className="text-right">{t.avgAging || "â€”"}</TableCell>
+                      <TableCell className="text-right">{t.avgAging || "—"}</TableCell>
                       <TableCell className="text-right">
                         {t.avgScore !== null ? (
                           <Badge variant={t.avgScore >= 4 ? "default" : t.avgScore >= 3 ? "secondary" : "destructive"}>
@@ -290,7 +290,7 @@ export default function Analytics() {
                     <div key={u.name} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                       <div>
                         <p className="text-sm font-medium">{u.name}</p>
-                        <p className="text-xs text-muted-foreground">{u.total} tickets â€¢ avg {u.avgAging}d</p>
+                        <p className="text-xs text-muted-foreground">{u.total} tickets • avg {u.avgAging}d</p>
                       </div>
                       <Badge className="bg-green-600">{u.resolutionRate}%</Badge>
                     </div>
@@ -313,7 +313,7 @@ export default function Analytics() {
                     <div key={u.name} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                       <div>
                         <p className="text-sm font-medium">{u.name}</p>
-                        <p className="text-xs text-muted-foreground">{u.total} tickets â€¢ avg {u.avgAging}d</p>
+                        <p className="text-xs text-muted-foreground">{u.total} tickets • avg {u.avgAging}d</p>
                       </div>
                       <Badge variant="destructive">{u.resolutionRate}%</Badge>
                     </div>

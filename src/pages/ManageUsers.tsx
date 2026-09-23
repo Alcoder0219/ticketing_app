@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -303,7 +303,7 @@ export default function ManageUsers() {
     }
     setFormLoading(true);
     try {
-      // Update profile â€” select() forces the response so RLS rejections surface as errors
+      // Update profile — select() forces the response so RLS rejections surface as errors
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .update({
@@ -433,13 +433,14 @@ export default function ManageUsers() {
   const unitsById = useMemo(() => new Map((units ?? []).map((u: any) => [u.id, u])), [units]);
 
   const getDeptName = (deptId: string | null) => {
-    if (!deptId) return "â€”";
-    return departmentsById.get(deptId)?.name || "â€”";
+    if (!deptId) return "-";
+    const name = departmentsById.get(deptId)?.name;
+    return name && name.trim() ? name : "-";
   };
 
   const getUnitName = (unitId: string | null) => {
-    if (!unitId) return "â€”";
-    return unitsById.get(unitId)?.name || "â€”";
+    if (!unitId) return "—";
+    return unitsById.get(unitId)?.name || "—";
   };
 
   return (
@@ -501,12 +502,12 @@ export default function ManageUsers() {
                               </Avatar>
                               <div>
                                 <p className="font-medium text-sm">{p.name}</p>
-                                <p className="text-xs text-muted-foreground">{p.username || "â€”"}</p>
+                                <p className="text-xs text-muted-foreground">{p.username || "—"}</p>
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="text-sm">{p.employee_id || "â€”"}</TableCell>
-                          <TableCell className="text-sm">{p.contact || "â€”"}</TableCell>
+                          <TableCell className="text-sm">{p.employee_id || "—"}</TableCell>
+                          <TableCell className="text-sm">{p.contact || "—"}</TableCell>
                           <TableCell>
                             <Badge variant={roleBadgeVariant[currentRole] ?? "outline"}>{formatRoleLabel(currentRole)}</Badge>
                           </TableCell>

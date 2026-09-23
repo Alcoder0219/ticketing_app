@@ -1,4 +1,4 @@
-﻿import { useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { AppLayout } from "@/components/AppLayout";
 import { Card } from "@/components/ui/card";
@@ -252,7 +252,7 @@ export default function Dashboard() {
 
   const dateLabel = dateRange?.from
     ? dateRange.to
-      ? `${format(dateRange.from, "dd-MM-yyyy")} â€“ ${format(dateRange.to, "dd-MM-yyyy")}`
+      ? `${format(dateRange.from, "dd-MM-yyyy")} – ${format(dateRange.to, "dd-MM-yyyy")}`
       : format(dateRange.from, "dd-MM-yyyy")
     : "Select date range";
 
